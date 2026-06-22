@@ -1,0 +1,22 @@
+name: MCP Sync Scheduler
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # every 15 minutes
+  workflow_dispatch: {}
+
+jobs:
+  sync_all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger MCP sync-all
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          MCP_SYNC_SECRET: ${{ secrets.MCP_SYNC_SECRET }}
+        run: |
+          if [ -z "$SITE_URL" ] || [ -z "$MCP_SYNC_SECRET" ]; then
+            echo "Missing SITE_URL or MCP_SYNC_SECRET secrets. Aborting.";
+            exit 1;
+          fi
+          echo "Calling MCP sync-all endpoint on $SITE_URL"
+          curl -sS -X POST "$SITE_URL/api/mcp/sync-all" -H "x-sync-secret: $MCP_SYNC_SECRET" -H "Content-Type: application/json" || exit 1

@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+import { sendEmail } from "../../../../lib/email/resend";
+import { createEmailToken } from "../../../../lib/email/tokens";
+
+export async function POST(req: Request) {
+  try {
+    const text = await req.text();
+    let body: any = {};
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch (err) {
+        console.error("send-confirmation invalid JSON", text);
+        return NextResponse.json({ error: "invalid_json", raw: text }, { status: 400 });
+      }
+    }
+
+    const email = body.email;
+    const name = body.name || "";
+
+    if (!email) {
+      return NextResponse.json({ error: "missing_email" }, { status: 400 });
+    }
+
+    // create a short-lived confirmation token and link
+    const token = createEmailToken(email, "confirm", 60 * 60 * 24);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.NEXT_PUBLIC_APP_DOMAIN || "example.com"}`;
+    const confirmUrl = `${appUrl}/auth/confirm?token=${encodeURIComponent(token)}`;
+
+    const html = `
+      <div style="font-family: system-ui, Arial, sans-serif; color: #0f172a">
+        <h2>Welcome${name ? `, ${name}` : ""}!</h2>
+        <p>Click the link below to confirm your email and activate your account:</p>
+        <p><a href="${confirmUrl}">${confirmUrl}</a></p>
+        <p>If you didn't request this, ignore this email.</p>
+        <p>— The V-AI Team</p>
+      </div>
+    `;
+
+    const from = process.env.FROM_EMAIL || `onboarding@${process.env.NEXT_PUBLIC_APP_DOMAIN || "example.com"}`;
+
+    const resp = await sendEmail(email, "Confirm your V-AI account", html);
+    return NextResponse.json({ ok: true, resp });
+  } catch (err: any) {
+    console.error("send-confirmation error:", err);
+    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+  }
+}

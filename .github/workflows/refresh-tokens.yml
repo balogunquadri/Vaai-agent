@@ -1,0 +1,22 @@
+name: Refresh Integration Tokens
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily at 03:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  refresh-tokens:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call token refresh endpoint
+        env:
+          BASE_URL: ${{ secrets.BASE_URL }}
+          JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
+        run: |
+          if [ -z "$BASE_URL" ] || [ -z "$JOBS_SECRET" ]; then
+            echo "BASE_URL or JOBS_SECRET not set - aborting.";
+            exit 1;
+          fi
+          echo "Calling ${BASE_URL}/api/jobs/refresh-tokens"
+          curl -sSf -X POST "${BASE_URL}/api/jobs/refresh-tokens" -H "x-jobs-secret: ${JOBS_SECRET}" -H "Content-Type: application/json" -d '{}'
