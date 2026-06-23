@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { insforge } from "@/lib/insforge";
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
-  const alertId = params.id;
+export async function POST(request: Request, context: any) {
+  const params = context && context.params && typeof context.params.then === "function" ? await context.params : context.params;
+  const alertId = params?.id;
   if (!alertId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
   try {

@@ -70,13 +70,13 @@ export default function Hero() {
 
         {/* Headline */}
         <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] text-white max-w-4xl">
-          Your Virtual Assistant That. <br />
+          Your AI Virtual & Spy Assistant That <br />
           <span className="text-gradient">Runs Your Workflow</span>
         </h1>
 
         {/* Subheading */}
         <p className="mt-6 text-lg sm:text-xl text-zinc-400 max-w-2xl leading-relaxed">
-          Connect <strong className="text-zinc-200">Slack, Gmail, Notion, WhatsApp, Drive, Zoom</strong>, and 10+ other platforms. Let your personal AI agent automate summaries, extract action items, and trigger cross-app actions automatically.
+          <strong className="text-zinc-200">Monitor </strong>Your Competitors While <strong className="text-zinc-200">you Connect Slack, Gmail, Notion</strong>, and 15+ other platforms. <br />Let your personal AI agent Monitor Your Competitors, automate summaries, extract action items, and trigger cross-app actions automatically.
         </p>
 
         {/* CTA Buttons */}

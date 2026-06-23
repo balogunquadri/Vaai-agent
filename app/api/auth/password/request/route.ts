@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@insforge/sdk';
 import crypto from 'crypto';
-import { sendEmail } from '../../../../lib/email/resend';
-import { resetPasswordEmail } from '../../../../lib/email/templates';
+import { sendEmail } from '../../../../../lib/email/resend';
+import { resetPasswordEmail } from '../../../../../lib/email/templates';
 
 export async function POST(request: Request) {
   try {
