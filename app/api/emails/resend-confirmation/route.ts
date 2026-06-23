@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { sendEmail } from "../../../../lib/email/resend";
-import { createEmailToken } from "../../../../lib/email/tokens";
+import { sendEmail } from "@/lib/email/resend";
+import { createEmailToken } from "@/lib/email/tokens";
 
 export async function POST(req: Request) {
   try {

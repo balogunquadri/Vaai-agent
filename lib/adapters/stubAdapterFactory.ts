@@ -4,7 +4,17 @@ import tokenManager from "../tokenManager";
 export function createStubAdapter(platformId: string, extraTools: string[] = []) {
   return {
     platform: platformId,
-    async getRecentItems({ userId, limit = 20 }: { userId?: string; limit?: number }) {
+    // Support both positional signature (userId, limit, userState) and object signature ({ userId, limit })
+    async getRecentItems(userIdOrOpts: any, limitParam?: number, _userState?: any) {
+      let userId: string | undefined;
+      let limit = limitParam ?? 20;
+      if (userIdOrOpts && typeof userIdOrOpts === 'object' && (userIdOrOpts.userId || userIdOrOpts.limit !== undefined)) {
+        userId = userIdOrOpts.userId;
+        limit = userIdOrOpts.limit ?? limit;
+      } else {
+        userId = userIdOrOpts;
+      }
+
       // Attempt to refresh tokens for this user/platform before returning items
       try {
         if (userId) await tokenManager.refreshAndSaveIntegration(userId, platformId);
@@ -15,7 +25,23 @@ export function createStubAdapter(platformId: string, extraTools: string[] = [])
       const all = getSimulatedFeed(platformId);
       return all.slice(0, limit);
     },
-    async executeTool({ tool, params, userId }: { tool: string; params?: any; userId?: string }) {
+    // Execute tool supports either object-style `({ tool, params, userId })`
+    // or positional `(userId, toolName, args, userState)` signatures.
+    async executeTool(userIdOrOpts: any, toolName?: string, args?: any, _userState?: any) {
+      let userId: string | undefined;
+      let tool: string;
+      let params: any;
+
+      if (userIdOrOpts && typeof userIdOrOpts === 'object' && (userIdOrOpts.tool || userIdOrOpts.params || userIdOrOpts.userId)) {
+        tool = userIdOrOpts.tool;
+        params = userIdOrOpts.params;
+        userId = userIdOrOpts.userId;
+      } else {
+        userId = userIdOrOpts;
+        tool = toolName as string;
+        params = args;
+      }
+
       // Attempt token refresh for authenticated calls
       try {
         if (userId) await tokenManager.refreshAndSaveIntegration(userId, platformId);
@@ -24,13 +50,13 @@ export function createStubAdapter(platformId: string, extraTools: string[] = [])
       }
 
       // Basic simulated responses per common action names
-      if (tool === "list" || tool.endsWith("_list") || tool.includes("channels") || tool.includes("repos")) {
+      if (tool === "list" || (tool && tool.endsWith && tool.endsWith("_list")) || (tool && tool.includes && tool.includes("channels")) || (tool && tool.includes && tool.includes("repos"))) {
         return { ok: true, items: getSimulatedFeed(platformId).slice(0, 10) };
       }
-      if (tool === "post" || tool.includes("message") || tool.includes("create") || tool.includes("comment")) {
+      if (tool === "post" || (tool && tool.includes && tool.includes("message")) || (tool && tool.includes && tool.includes("create")) || (tool && tool.includes && tool.includes("comment"))) {
         return { ok: true, id: `${platformId}_sim_${Date.now()}`, status: "posted", params };
       }
-      if (tool === "get" || tool.includes("get_page") || tool.includes("fetch")) {
+      if (tool === "get" || (tool && tool.includes && tool.includes("get_page")) || (tool && tool.includes && tool.includes("fetch"))) {
         const items = getSimulatedFeed(platformId);
         return { ok: true, item: items[0] || null };
       }

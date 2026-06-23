@@ -76,7 +76,7 @@ export async function persistLarkTokensForUser(userId: string, tokens: any) {
 
   await admin.database.from("integrations").upsert([
     { user_id: userId, platform: "lark", connected: true, state: toSave }
-  ], { onConflict: ["user_id","platform"] });
+  ], { onConflict: "user_id,platform" });
 }
 
 export async function clearLarkIntegration(userId: string) {

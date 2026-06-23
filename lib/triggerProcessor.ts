@@ -15,8 +15,8 @@ export async function processTrigger(triggerSpec: any, payload: any) {
         // Stub: split sentences that contain verbs like 'do' or 'please'
         const items = transcript
           .split(/[\.\n]/)
-          .map(s => s.trim())
-          .filter(s => s.length > 10)
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 10)
           .slice(0, 10);
         results.push({ action: 'extract_action_items', ok: true, items });
       } else if (action.type === 'save_to_google_docs') {

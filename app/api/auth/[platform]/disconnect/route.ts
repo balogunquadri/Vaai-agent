@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { createAdminClient } from "@insforge/sdk";
 
-export async function POST(request: Request, { params }: { params: { platform: string } }) {
-  const { platform } = params;
+export async function POST(request: NextRequest, context: { params: Promise<any> }) {
+  const params = context && context.params ? await context.params : ({} as any);
+  const { platform } = params || { platform: undefined };
   try {
     const body = await request.json().catch(() => ({}));
     const userId = body.userId || new URL(request.url).searchParams.get("userId");
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
+    if (!platform) return NextResponse.json({ error: "platform required" }, { status: 400 });
 
     const admin = createAdminClient({ baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!, apiKey: process.env.INSFORGE_API_KEY! });
 

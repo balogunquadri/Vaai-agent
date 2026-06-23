@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { createAdminClient } from "@insforge/sdk";
 
-export async function GET(request: Request, { params }: { params: { platform: string } }) {
-  const { platform } = params;
+export async function GET(request: NextRequest, context: { params: Promise<any> }) {
+  const params = context && context.params ? await context.params : ({} as any);
+  const { platform } = params || { platform: undefined };
+  if (!platform) return NextResponse.json({ error: "platform required" }, { status: 400 });
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("userId") || "";
   const origin = `${new URL(request.url).protocol}//${new URL(request.url).host}`;

@@ -15,19 +15,19 @@ import telegramAdapter from "./adapters/telegramAdapter";
 import outlookAdapter from "./adapters/outlookAdapter";
 
 // Register built-in adapters here. Additional adapters can be registered elsewhere.
-registerAdapter("slack", slackAdapter);
-registerAdapter("notion", notionAdapter);
-registerAdapter("discord", discordAdapter);
-registerAdapter("teams", teamsAdapter);
-registerAdapter("jira", jiraAdapter);
-registerAdapter("trello", trelloAdapter);
-registerAdapter("asana", asanaAdapter);
-registerAdapter("calendly", calendlyAdapter);
-registerAdapter("google_calendar", gcalAdapter);
-registerAdapter("zoom", zoomAdapter);
-registerAdapter("github", githubAdapter);
-registerAdapter("google_drive", gdriveAdapter);
-registerAdapter("telegram", telegramAdapter);
-registerAdapter("outlook", outlookAdapter);
+registerAdapter("slack", slackAdapter as any);
+registerAdapter("notion", notionAdapter as any);
+registerAdapter("discord", discordAdapter as any);
+registerAdapter("teams", teamsAdapter as any);
+registerAdapter("jira", jiraAdapter as any);
+registerAdapter("trello", trelloAdapter as any);
+registerAdapter("asana", asanaAdapter as any);
+registerAdapter("calendly", calendlyAdapter as any);
+registerAdapter("google_calendar", gcalAdapter as any);
+registerAdapter("zoom", zoomAdapter as any);
+registerAdapter("github", githubAdapter as any);
+registerAdapter("google_drive", gdriveAdapter as any);
+registerAdapter("telegram", telegramAdapter as any);
+registerAdapter("outlook", outlookAdapter as any);
 
 export default null;

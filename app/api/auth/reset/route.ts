@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyEmailToken } from "../../../../lib/email/tokens";
+import { verifyEmailToken } from "@/lib/email/tokens";
 import { createAdminClient } from "@insforge/sdk";
 import bcrypt from "bcryptjs";
 

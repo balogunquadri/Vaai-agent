@@ -15,6 +15,7 @@
     "@insforge/sdk": "^1.4.2",
     "@trigger.dev/sdk": "4.4.6",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "bcryptjs": "^2.4.3",
     "googleapis": "^121.0.0",
     "lucide-react": "^1.20.0",
     "next": "16.2.9",
@@ -23,7 +24,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "resend": "^6.12.4",
-    "bcryptjs": "^2.4.3",
     "stripe": "^12.13.0",
     "telegram": "^2.26.22"
   },
