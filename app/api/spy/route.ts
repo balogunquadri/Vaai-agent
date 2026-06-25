@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { SpyService } from "../../../lib/services/spyService";
-import { runIntelligenceEngine } from "../../../lib/services/intelligenceEngine";
+import { createAdminClient } from "@insforge/sdk";
+import { deriveUserIdFromRequest } from "../../../lib/authHelpers";
 import { SpyRequestPayload } from "../../../types/spy";
 
 export async function POST(request: Request) {
@@ -23,35 +23,111 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log(`[API Spy] Triggered audit for ${urlA} vs ${urlB}`);
+    console.log(`[API Spy] Triggered audit request for ${urlA} vs ${urlB}`);
 
-    // 2. Instantiate Spy Services
-    const serviceA = new SpyService(urlA);
-    const serviceB = new SpyService(urlB);
+    const userId = deriveUserIdFromRequest(request) || "anonymous";
 
-    // 3. Fetch data in parallel
-    const [companyA, companyB] = await Promise.all([
-      serviceA.fetchIntelligence(options),
-      serviceB.fetchIntelligence(options),
-    ]);
+    const admin = createAdminClient({
+      baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+      apiKey: process.env.INSFORGE_API_KEY!,
+    });
 
-    // 4. Generate the comparative AI report using Gemini
-    let aiReport = "";
-    try {
-      aiReport = await runIntelligenceEngine(companyA, companyB, options);
-    } catch (engineErr: any) {
-      console.error("Gemini analysis compilation failed:", engineErr);
-      aiReport = `### ⚠️ AI Engine Error\nWe gathered the data successfully but Gemini was unable to generate the report: ${engineErr.message || engineErr}`;
+    // 2. Sort targets and generate cache key
+    const sortedTargets = [urlA.toLowerCase().trim(), urlB.toLowerCase().trim()].sort();
+    const cacheKey = `${sortedTargets[0]}_vs_${sortedTargets[1]}`;
+
+    // 3. Query DB cache first
+    const { data: cachedRows, error: cacheFetchErr } = await admin.database
+      .from("integrations")
+      .select()
+      .eq("platform", "spy_cache")
+      .eq("connected", true);
+
+    if (!cacheFetchErr && cachedRows && cachedRows.length > 0) {
+      // Look for a valid (non-expired) cache entry
+      const activeCache = cachedRows.find((row: any) => {
+        const state = row.state || {};
+        return state.key === cacheKey && new Date(state.expiresAt).getTime() > Date.now();
+      });
+
+      if (activeCache) {
+        console.log(`[API Spy] Cache hit for key: ${cacheKey}`);
+        return NextResponse.json({
+          success: true,
+          fromCache: true,
+          data: activeCache.state.payload,
+        });
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        companyA,
-        companyB,
-        aiReport,
-      },
+    // 4. Cache missed: create an asynchronous background job
+    const initialJobState = {
+      status: "pending",
+      urlA,
+      urlB,
+      options,
+      userId,
+      createdAt: new Date().toISOString()
+    };
+
+    const { data: jobRow, error: insertErr } = await admin.database
+      .from("integrations")
+      .insert([
+        {
+          user_id: userId,
+          platform: "spy_job",
+          connected: false,
+          state: initialJobState,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ])
+      .select()
+      .single();
+
+    if (insertErr || !jobRow) {
+      console.error("[API Spy] Failed to insert job status in db:", insertErr);
+      return NextResponse.json(
+        { success: false, error: "Failed to create processing job in database." },
+        { status: 500 }
+      );
+    }
+
+    const jobId = jobRow.id;
+
+    // Save the jobId back inside the state object
+    await admin.database
+      .from("integrations")
+      .update({
+        state: { ...initialJobState, jobId },
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", jobId);
+
+    // 5. Fire background worker trigger asynchronously (fire-and-forget)
+    const host = request.headers.get("host") || "localhost:3000";
+    const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+    const baseUrl = `${protocol}://${host}`;
+
+    fetch(`${baseUrl}/api/spy/process`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId }),
+    }).catch((err) => {
+      console.error("[API Spy] Failed to trigger process background worker:", err);
     });
+
+    console.log(`[API Spy] Async job ${jobId} initiated successfully.`);
+
+    return NextResponse.json(
+      {
+        success: true,
+        fromCache: false,
+        jobId,
+      },
+      { status: 202 } // 202 Accepted
+    );
+
   } catch (error: any) {
     console.error("Critical error in /api/spy route handler:", error);
     return NextResponse.json(

@@ -1,6 +1,10 @@
 import { CompetitorData, SpyOptions } from "../../types/spy";
 
 export class SpyService {
+  // Static in-memory cache for link checks (1-hour TTL)
+  private static linkCache = new Map<string, { available: boolean; statusText: string; cachedAt: number }>();
+  private static CACHE_TTL_MS = 60 * 60 * 1000;
+
   private targetUrl: string;
   private parsedName: string;
   private isUrl: boolean = false;
@@ -118,9 +122,18 @@ export class SpyService {
       return { available: false, statusText: "Invalid URL structure" };
     }
 
+    // Check static cache
+    const cached = SpyService.linkCache.get(url);
+    if (cached && Date.now() - cached.cachedAt < SpyService.CACHE_TTL_MS) {
+      console.log(`[SpyService] Link check cache hit: ${url}`);
+      return { available: cached.available, statusText: cached.statusText };
+    }
+
+    let result: { available: boolean; statusText: string };
+
     try {
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 5000);
+      const id = setTimeout(() => controller.abort(), 3000); // reduced timeout to 3 seconds for efficiency
       
       const res = await fetch(url, {
         method: "GET",
@@ -133,13 +146,13 @@ export class SpyService {
       clearTimeout(id);
 
       if (res.status === 404) {
-        return { available: false, statusText: "Profile not found (HTTP 404)" };
+        result = { available: false, statusText: "Profile not found (HTTP 404)" };
+      } else {
+        result = { 
+          available: true, 
+          statusText: `Link active and verified (HTTP status ${res.status})`
+        };
       }
-      
-      return { 
-        available: true, 
-        statusText: `Link active and verified (HTTP status ${res.status})`
-      };
     } catch (e: any) {
       const errMsg = e.message || String(e);
       console.warn(`Link check failed for ${url}:`, errMsg);
@@ -151,14 +164,18 @@ export class SpyService {
         errMsg.includes("fetch failed") ||
         errMsg.includes("ECONNREFUSED")
       ) {
-        return { available: false, statusText: `Link unreachable (DNS/Network error)` };
+        result = { available: false, statusText: `Link unreachable (DNS/Network error)` };
+      } else {
+        result = { 
+          available: true, 
+          statusText: "Link assumed active (rate limit/login wall bypass)" 
+        };
       }
-      
-      return { 
-        available: true, 
-        statusText: "Link assumed active (rate limit/login wall bypass)" 
-      };
     }
+
+    // Cache the result
+    SpyService.linkCache.set(url, { ...result, cachedAt: Date.now() });
+    return result;
   }
 
   /**

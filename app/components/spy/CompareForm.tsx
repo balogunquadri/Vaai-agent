@@ -43,6 +43,47 @@ export default function CompareForm({
     setIsLoading(true);
     onAnalyzeStart();
 
+    const pollJobStatus = (jobId: string) => {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/spy/status?jobId=${jobId}`);
+          if (!res.ok) {
+            throw new Error("Failed to fetch job status.");
+          }
+          const pollResult = await res.json();
+          if (pollResult.success) {
+            if (pollResult.status === "completed") {
+              clearInterval(interval);
+              setIsLoading(false);
+              onAnalyzeComplete({
+                success: true,
+                data: pollResult.data
+              });
+            } else if (pollResult.status === "failed") {
+              clearInterval(interval);
+              setIsLoading(false);
+              const errMsg = pollResult.error || "Intelligence generation failed in background.";
+              setError(errMsg);
+              onAnalyzeError(errMsg);
+            }
+            // If status is "pending" or "running", just continue polling
+          } else {
+            clearInterval(interval);
+            setIsLoading(false);
+            const errMsg = pollResult.error || "Error checking job status.";
+            setError(errMsg);
+            onAnalyzeError(errMsg);
+          }
+        } catch (err: any) {
+          clearInterval(interval);
+          setIsLoading(false);
+          const errMsg = err.message || "Failed during status polling.";
+          setError(errMsg);
+          onAnalyzeError(errMsg);
+        }
+      }, 2000);
+    };
+
     try {
       const response = await fetch("/api/spy", {
         method: "POST",
@@ -56,21 +97,26 @@ export default function CompareForm({
         }),
       });
 
-      const result: SpyResultResponse = await response.json();
+      const result = await response.json();
 
       if (response.ok && result.success) {
-        onAnalyzeComplete(result);
+        if (result.fromCache) {
+          setIsLoading(false);
+          onAnalyzeComplete(result);
+        } else {
+          pollJobStatus(result.jobId);
+        }
       } else {
         const errorMsg = result.error || "Failed to retrieve spy reports.";
         setError(errorMsg);
         onAnalyzeError(errorMsg);
+        setIsLoading(false);
       }
     } catch (err: any) {
       console.error(err);
       const errorMsg = "Network error. Please check your connection and try again.";
       setError(errorMsg);
       onAnalyzeError(errorMsg);
-    } finally {
       setIsLoading(false);
     }
   };

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import CompareForm from "../../components/spy/CompareForm";
 import { SpyResultResponse } from "../../../types/spy";
 
@@ -10,6 +10,7 @@ export default function SpyDashboardPage() {
   const [error, setError] = useState("");
   const [activeStep, setActiveStep] = useState(0);
   const [activePlatformTab, setActivePlatformTab] = useState("instagram");
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Simulated progress steps during analysis
   const progressSteps = [
@@ -28,24 +29,39 @@ export default function SpyDashboardPage() {
     setError("");
     setActiveStep(0);
 
-    const interval = setInterval(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = setInterval(() => {
       setActiveStep((prev) => {
         if (prev < progressSteps.length - 1) {
           return prev + 1;
         } else {
-          clearInterval(interval);
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
           return prev;
         }
       });
-    }, 2500);
+    }, 2000);
   };
 
   const handleAnalyzeComplete = (res: SpyResultResponse) => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     setResult(res);
     setIsLoading(false);
   };
 
   const handleAnalyzeError = (err: string) => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
     setError(err);
     setIsLoading(false);
   };
