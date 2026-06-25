@@ -86,3 +86,25 @@ Once connected, VA-AI aggregates data across all active platforms:
 * **Scheduled Digests**: When scheduling a digest briefing, tick the checkbox next to any connected platform to incorporate its updates.
 * **Alert Trigger Rules**: Key alerts track keywords in Slack channel logs, GitHub issue trackers, and Notion edits. If a match is found, an instant system alert is triggered.
 * **Live Connected Streams**: The bottom section of the main Dashboard page features tabs for all active streams. Click Slack, GitHub, or Jira to monitor recent events in real-time.
+
+---
+
+## 🕵️ Competitor Intelligence (Spy Hub)
+
+The **Spy Hub** (`/dashboard/spy`) provides dynamic, automated competitor intelligence profiling and growth strategy generation using Gemini:
+
+1. **Flexible Target Benchmarking**: Input domains (`site.com`), naked handles (`@brand`), platform-prefixed handles (`youtube/@brand`), or video links. 
+2. **Sanitization & Canonization**: Comma domain typos (like `site,com`) are cleaned automatically. Handles are normalized into proper platform URL formats (Instagram, YouTube, TikTok, Twitter/X, Facebook, and LinkedIn) for precise verification checks.
+3. **Multi-Platform Telemetry comparison**: Verifies handle availability via GET headers (handling 404s vs login walls) and loads customized Content Strategy, Virality indicators, and Growth recommendations in a side-by-side comparison tab grid.
+4. **Self-Healing AI SWOT & Strategy**: Compiles comparison parameters and queries Gemini. Resolves API quota/temporary demand failures using a self-healing fallback chain: `gemini-2.5-flash` ➡️ `gemini-2.5-pro` ➡️ `gemini-1.5-flash` ➡️ `gemini-1.5-pro`.
+
+---
+
+## 📨 Sign-Up & Email Verification
+
+VA-AI secures advanced features behind email verification to prevent spam and ensure account ownership:
+
+1. **Sign-up Redirect**: Creating an account triggers an email verification code and logs out the session, redirecting the user to `/sign-in`.
+2. **Activation URL**: Clicking the verification link in your inbox routes to the backend Route Handler `/api/auth/confirm?token=...`, confirming the email and updating the database.
+3. **Restricted Dashboard Access**: Unverified users can still log in to view basic frames, but see a warning banner at the top of `/dashboard` with a **Resend Link** trigger. Navigating to sub-pages (Spy, Triggers, Integrations, Settings) blocks access and displays a lock screen.
+4. **Collision-Free Syncing**: The auth provider profile synchronizer automatically falls back to merging placeholder email records when users log in for the first time, preventing unique constraint violations.
