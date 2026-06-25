@@ -53,36 +53,41 @@ export default function SignUp() {
       }
 
       if (data) {
-        if (data.requireEmailVerification) {
-          setSuccessMsg("Account created! Please check your email to verify your address.");
-          setLoading(false);
-        } else {
-          // Logged in automatically
-          await refreshUser();
-          try {
-            // auto-subscribe to starter plan (creates Stripe customer and marks starter in metadata)
-            await fetch("/api/stripe/auto-subscribe-starter", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, name }),
-            });
-          } catch (e) {
-            console.warn("auto-subscribe failed:", e);
-          }
-
-          // send confirmation email via Resend
-          try {
-            await fetch("/api/emails/send-confirmation", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, name }),
-            });
-          } catch (e) {
-            console.warn("send-confirmation failed:", e);
-          }
-
-          router.push("/");
+        // Sign out immediately to prevent automatic login
+        try {
+          await insforge.auth.signOut();
+        } catch (signOutErr) {
+          console.warn("Sign out during signup failed:", signOutErr);
         }
+
+        // Trigger auto-subscribe to starter plan (creates Stripe customer)
+        try {
+          await fetch("/api/stripe/auto-subscribe-starter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, name }),
+          });
+        } catch (e) {
+          console.warn("auto-subscribe failed:", e);
+        }
+
+        // Send confirmation email via Resend
+        try {
+          await fetch("/api/emails/send-confirmation", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, name }),
+          });
+        } catch (e) {
+          console.warn("send-confirmation failed:", e);
+        }
+
+        setSuccessMsg("Account created! A confirmation link has been sent to your email. Redirecting to sign in...");
+        setLoading(false);
+
+        setTimeout(() => {
+          router.push("/sign-in");
+        }, 3000);
       }
     } catch (err: any) {
       console.error(err);

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     const token = createEmailToken(email, "confirm", 60 * 60 * 24);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.NEXT_PUBLIC_APP_DOMAIN || "example.com"}`;
-    const confirmUrl = `${appUrl}/auth/confirm?token=${encodeURIComponent(token)}`;
+    const confirmUrl = `${appUrl}/api/auth/confirm?token=${encodeURIComponent(token)}`;
 
     const html = `
       <div style="font-family: system-ui, Arial, sans-serif; color: #0f172a">

@@ -9,6 +9,7 @@ interface UserProfile {
   name: string;
   avatar_url: string | null;
   created_at?: string;
+  confirmed?: boolean;
 }
 
 interface AuthContextType {
@@ -28,22 +29,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const syncUserProfile = async (currentUser: any) => {
     try {
-      // 1. Check if user already exists in public.users table
-      const { data, error } = await insforge.database
+      // 1. Check if user already exists by ID in public.users table
+      let { data, error } = await insforge.database
         .from("users")
         .select()
         .eq("id", currentUser.id)
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching user profile:", error);
+        console.error("Error fetching user profile by ID:", error);
         return;
+      }
+
+      // 2. Fallback: Check if user exists by email (minimal profile created on signup/confirmation)
+      if (!data) {
+        const { data: emailUser, error: emailError } = await insforge.database
+          .from("users")
+          .select()
+          .eq("email", currentUser.email)
+          .maybeSingle();
+
+        if (emailError) {
+          console.error("Error fetching user profile by email:", emailError);
+        } else if (emailUser) {
+          // Update the existing placeholder row with the actual user ID and profile properties
+          const name = currentUser.profile?.name || currentUser.email.split("@")[0];
+          const avatar_url = currentUser.profile?.avatar_url || null;
+
+          const { data: updatedProfile, error: updateError } = await insforge.database
+            .from("users")
+            .update({
+              id: currentUser.id,
+              name: name,
+              avatar_url: avatar_url,
+              // If they logged in, we assume confirmed is true (OAuth or via verification link)
+              confirmed: true,
+            })
+            .eq("email", currentUser.email)
+            .select()
+            .single();
+
+          if (updateError) {
+            console.error("Error updating user profile by email:", updateError);
+          } else if (updatedProfile) {
+            setProfile(updatedProfile as UserProfile);
+            return;
+          }
+        }
       }
 
       if (data) {
         setProfile(data as UserProfile);
       } else {
-        // 2. Insert user into users table if not exists (first time sign-in)
+        // 3. Insert user into users table if not exists at all
         const name = currentUser.profile?.name || currentUser.email.split("@")[0];
         const avatar_url = currentUser.profile?.avatar_url || null;
 
@@ -55,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: currentUser.email,
               name: name,
               avatar_url: avatar_url,
+              confirmed: true, // Default to true since they authenticated (either oauth or registered verified)
             },
           ])
           .select()

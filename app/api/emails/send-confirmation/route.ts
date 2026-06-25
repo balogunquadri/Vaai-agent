@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email/resend";
 import { createEmailToken } from "@/lib/email/tokens";
+import { createAdminClient } from "@insforge/sdk";
 
 export async function POST(req: Request) {
   try {
@@ -25,7 +26,38 @@ export async function POST(req: Request) {
     // create a short-lived confirmation token and link
     const token = createEmailToken(email, "confirm", 60 * 60 * 24);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || `https://${process.env.NEXT_PUBLIC_APP_DOMAIN || "example.com"}`;
-    const confirmUrl = `${appUrl}/auth/confirm?token=${encodeURIComponent(token)}`;
+    const confirmUrl = `${appUrl}/api/auth/confirm?token=${encodeURIComponent(token)}`;
+
+    // Insert/update user with confirmed: false in the public users table using the admin client
+    try {
+      const admin = createAdminClient({
+        baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
+        apiKey: process.env.INSFORGE_API_KEY!,
+      });
+      const { data: existingUser } = await admin.database
+        .from("users")
+        .select()
+        .eq("email", email)
+        .maybeSingle();
+
+      if (!existingUser) {
+        await admin.database.from("users").insert([
+          {
+            email,
+            name: name || null,
+            confirmed: false,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } else {
+        await admin.database
+          .from("users")
+          .update({ name: name || existingUser.name })
+          .eq("email", email);
+      }
+    } catch (dbErr) {
+      console.error("Failed to insert initial user row:", dbErr);
+    }
 
     const html = `
       <div style="font-family: system-ui, Arial, sans-serif; color: #0f172a">
