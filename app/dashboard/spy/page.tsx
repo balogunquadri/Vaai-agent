@@ -1,16 +1,408 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import CompareForm from "../../components/spy/CompareForm";
 import { SpyResultResponse } from "../../../types/spy";
+import { useAuth } from "../../components/AuthProvider";
+import { insforge } from "@/lib/insforge";
+
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
 
 export default function SpyDashboardPage() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<SpyResultResponse | null>(null);
   const [error, setError] = useState("");
   const [activeStep, setActiveStep] = useState(0);
   const [activePlatformTab, setActivePlatformTab] = useState("instagram");
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Tasks integrations
+  const [addingTaskMap, setAddingTaskMap] = useState<Record<string, boolean>>({});
+  const [completedItems, setCompletedItems] = useState<Record<string, boolean>>({});
+
+  // History list state
+  const [historyList, setHistoryList] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchHistory = async () => {
+    if (!user) return;
+    setLoadingHistory(true);
+    try {
+      const { data, error } = await insforge.database
+        .from("integrations")
+        .select()
+        .eq("platform", "spy_cache");
+      
+      if (!error && data) {
+        const list = data.map((row: any) => {
+          const stateObj = parseState(row.state);
+          return {
+            id: row.id,
+            key: stateObj.key,
+            targets: stateObj.key ? stateObj.key.split("_vs_") : [],
+            expiresAt: stateObj.expiresAt,
+            payload: stateObj.payload,
+            updatedAt: row.updated_at
+          };
+        });
+        setHistoryList(list);
+      }
+    } catch (e) {
+      console.error("Failed to load audit history:", e);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchHistory();
+    }
+  }, [user]);
+
+  const handleSelectHistoryItem = (item: any) => {
+    setResult({
+      success: true,
+      data: item.payload
+    });
+  };
+
+  const handleAddTask = async (title: string, description: string) => {
+    if (!user) {
+      alert("Error: Active user session not found. Please log in.");
+      return;
+    }
+    const taskKey = `${title}_${description}`;
+    setAddingTaskMap(prev => ({ ...prev, [taskKey]: true }));
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          title,
+          description,
+          priority: "medium"
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`Successfully added to your dashboard tasks: "${title}"!`);
+      } else {
+        alert(data.error || "Failed to add task.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to connect to tasks API.");
+    } finally {
+      setAddingTaskMap(prev => ({ ...prev, [taskKey]: false }));
+    }
+  };
+
+  const toggleItemCompleted = (itemKey: string) => {
+    setCompletedItems(prev => ({ ...prev, [itemKey]: !prev[itemKey] }));
+  };
+
+  const renderStructuredReport = (report: any) => {
+    return (
+      <div className="space-y-8 animate-fade-in text-xs">
+        
+        {/* Executive Summary */}
+        <div className="glass-panel rounded-3xl p-6 md:p-8 bg-gradient-to-r from-violet-900/10 to-cyan-900/10 border border-violet-500/20">
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            Executive Summary
+          </h3>
+          <p className="text-zinc-300 text-xs leading-relaxed">{report.executiveSummary}</p>
+        </div>
+
+        {/* SWOT Grid */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold text-zinc-550 uppercase tracking-wider">
+            ⚔️ SWOT Analysis Matrix
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Strengths */}
+            <div className="glass-panel rounded-3xl p-6 border border-emerald-500/20 bg-emerald-500/[0.01] hover:scale-[1.01] transition-transform">
+              <div className="flex items-center gap-2 border-b border-emerald-500/10 pb-3 mb-4">
+                <span className="text-lg">💪</span>
+                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Strengths</h4>
+              </div>
+              <ul className="space-y-3">
+                {report.strengths?.map((item: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-zinc-300 leading-relaxed text-[11px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                    <div>{item}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Weaknesses */}
+            <div className="glass-panel rounded-3xl p-6 border border-rose-500/20 bg-rose-500/[0.01] hover:scale-[1.01] transition-transform">
+              <div className="flex items-center gap-2 border-b border-rose-500/10 pb-3 mb-4">
+                <span className="text-lg">⚠️</span>
+                <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider">Weaknesses</h4>
+              </div>
+              <ul className="space-y-3">
+                {report.weaknesses?.map((item: string, idx: number) => {
+                  const taskKey = `weakness_${idx}`;
+                  return (
+                    <li key={idx} className="flex items-start justify-between gap-3 text-zinc-300 leading-relaxed text-[11px]">
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                        <div>{item}</div>
+                      </div>
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddTask(`Fix Weakness: ${item.slice(0, 50)}...`, `From SWOT Weaknesses: ${item}`)}
+                          disabled={addingTaskMap[taskKey]}
+                          className="px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/30 text-rose-400 text-[9px] font-bold shrink-0 transition-all cursor-pointer select-none"
+                        >
+                          {addingTaskMap[taskKey] ? "..." : "+ Task"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Opportunities */}
+            <div className="glass-panel rounded-3xl p-6 border border-violet-500/20 bg-violet-500/[0.01] hover:scale-[1.01] transition-transform">
+              <div className="flex items-center gap-2 border-b border-violet-500/10 pb-3 mb-4">
+                <span className="text-lg">💡</span>
+                <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">Opportunities</h4>
+              </div>
+              <ul className="space-y-3">
+                {report.opportunities?.map((item: string, idx: number) => {
+                  const taskKey = `opp_${idx}`;
+                  return (
+                    <li key={idx} className="flex items-start justify-between gap-3 text-zinc-300 leading-relaxed text-[11px]">
+                      <div className="flex items-start gap-2.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 mt-1.5 shrink-0" />
+                        <div>{item}</div>
+                      </div>
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddTask(`Replicate Opp: ${item.slice(0, 50)}...`, `From SWOT Opportunities: ${item}`)}
+                          disabled={addingTaskMap[taskKey]}
+                          className="px-2 py-1 rounded bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/30 text-violet-400 text-[9px] font-bold shrink-0 transition-all cursor-pointer select-none"
+                        >
+                          {addingTaskMap[taskKey] ? "..." : "+ Task"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Threats */}
+            <div className="glass-panel rounded-3xl p-6 border border-amber-500/20 bg-amber-500/[0.01] hover:scale-[1.01] transition-transform">
+              <div className="flex items-center gap-2 border-b border-amber-500/10 pb-3 mb-4">
+                <span className="text-lg">🛡️</span>
+                <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">Threats</h4>
+              </div>
+              <ul className="space-y-3">
+                {report.threats?.map((item: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-2.5 text-zinc-300 leading-relaxed text-[11px]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                    <div>{item}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Enabled Insights */}
+        {(report.seoInsights || report.socialInsights || report.aiFootprintInsights) && (
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-zinc-550 uppercase tracking-wider">
+              📈 Audit Domain Insights
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {report.seoInsights && (
+                <div className="glass-panel rounded-2xl p-5 border border-cyan-500/10 bg-cyan-500/[0.005]">
+                  <h5 className="text-[10px] text-cyan-400 font-extrabold uppercase tracking-wider mb-2">SEO Insights</h5>
+                  <p className="text-zinc-400 text-[11px] leading-relaxed">{report.seoInsights}</p>
+                </div>
+              )}
+              {report.socialInsights && (
+                <div className="glass-panel rounded-2xl p-5 border border-violet-500/10 bg-violet-500/[0.005]">
+                  <h5 className="text-[10px] text-violet-400 font-extrabold uppercase tracking-wider mb-2">Social Insights</h5>
+                  <p className="text-zinc-400 text-[11px] leading-relaxed">{report.socialInsights}</p>
+                </div>
+              )}
+              {report.aiFootprintInsights && (
+                <div className="glass-panel rounded-2xl p-5 border border-rose-500/10 bg-rose-500/[0.005]">
+                  <h5 className="text-[10px] text-rose-400 font-extrabold uppercase tracking-wider mb-2">AI Footprint Insights</h5>
+                  <p className="text-zinc-400 text-[11px] leading-relaxed">{report.aiFootprintInsights}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 30-Day Stepper Timeline */}
+        <div className="space-y-4">
+          <h3 className="text-xs font-bold text-zinc-550 uppercase tracking-wider">
+            🚀 30-Day Growth & Replication Timeline
+          </h3>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Days 1-10 */}
+            <div className="glass-panel rounded-3xl p-6 border border-card-border/60 bg-foreground/[0.005] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 border-b border-border-color/30 pb-3 mb-4">
+                  <span className="w-6 h-6 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-[10px] font-extrabold text-cyan-400 shrink-0">1</span>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Days 1 - 10: Setup & Audit</h4>
+                </div>
+                <div className="space-y-4">
+                  {report.planDays1to10?.map((item: string, idx: number) => {
+                    const itemKey = `plan1_${idx}`;
+                    const isCompleted = !!completedItems[itemKey];
+                    return (
+                      <div key={idx} className="flex items-start justify-between gap-3 text-zinc-300 text-[11px] leading-relaxed border-b border-border-color/10 pb-2 last:border-b-0">
+                        <label className="flex items-start gap-2.5 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isCompleted}
+                            onChange={() => toggleItemCompleted(itemKey)}
+                            className="mt-1 w-3.5 h-3.5 rounded border border-card-border bg-card-bg accent-violet-600 cursor-pointer shrink-0" 
+                          />
+                          <span className={isCompleted ? "line-through text-zinc-500" : ""}>{item}</span>
+                        </label>
+                        {user && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddTask(`Plan D1-10: ${item.slice(0, 50)}...`, `Action Plan Phase 1: ${item}`)}
+                            disabled={addingTaskMap[itemKey]}
+                            className="px-1.5 py-0.5 rounded bg-foreground/[0.04] hover:bg-foreground/[0.08] text-zinc-400 hover:text-white text-[9px] shrink-0 cursor-pointer"
+                          >
+                            {addingTaskMap[itemKey] ? "..." : "+ Task"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Days 11-20 */}
+            <div className="glass-panel rounded-3xl p-6 border border-card-border/60 bg-foreground/[0.005] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 border-b border-border-color/30 pb-3 mb-4">
+                  <span className="w-6 h-6 rounded-full bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-[10px] font-extrabold text-violet-400 shrink-0">2</span>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Days 11 - 20: Execution</h4>
+                </div>
+                <div className="space-y-4">
+                  {report.planDays11to20?.map((item: string, idx: number) => {
+                    const itemKey = `plan2_${idx}`;
+                    const isCompleted = !!completedItems[itemKey];
+                    return (
+                      <div key={idx} className="flex items-start justify-between gap-3 text-zinc-300 text-[11px] leading-relaxed border-b border-border-color/10 pb-2 last:border-b-0">
+                        <label className="flex items-start gap-2.5 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isCompleted}
+                            onChange={() => toggleItemCompleted(itemKey)}
+                            className="mt-1 w-3.5 h-3.5 rounded border border-card-border bg-card-bg accent-violet-600 cursor-pointer shrink-0" 
+                          />
+                          <span className={isCompleted ? "line-through text-zinc-500" : ""}>{item}</span>
+                        </label>
+                        {user && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddTask(`Plan D11-20: ${item.slice(0, 50)}...`, `Action Plan Phase 2: ${item}`)}
+                            disabled={addingTaskMap[itemKey]}
+                            className="px-1.5 py-0.5 rounded bg-foreground/[0.04] hover:bg-foreground/[0.08] text-zinc-400 hover:text-white text-[9px] shrink-0 cursor-pointer"
+                          >
+                            {addingTaskMap[itemKey] ? "..." : "+ Task"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Days 21-30 */}
+            <div className="glass-panel rounded-3xl p-6 border border-card-border/60 bg-foreground/[0.005] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 border-b border-border-color/30 pb-3 mb-4">
+                  <span className="w-6 h-6 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-[10px] font-extrabold text-rose-400 shrink-0">3</span>
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">Days 21 - 30: Scale & Sync</h4>
+                </div>
+                <div className="space-y-4">
+                  {report.planDays21to30?.map((item: string, idx: number) => {
+                    const itemKey = `plan3_${idx}`;
+                    const isCompleted = !!completedItems[itemKey];
+                    return (
+                      <div key={idx} className="flex items-start justify-between gap-3 text-zinc-300 text-[11px] leading-relaxed border-b border-border-color/10 pb-2 last:border-b-0">
+                        <label className="flex items-start gap-2.5 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isCompleted}
+                            onChange={() => toggleItemCompleted(itemKey)}
+                            className="mt-1 w-3.5 h-3.5 rounded border border-card-border bg-card-bg accent-violet-600 cursor-pointer shrink-0" 
+                          />
+                          <span className={isCompleted ? "line-through text-zinc-500" : ""}>{item}</span>
+                        </label>
+                        {user && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddTask(`Plan D21-30: ${item.slice(0, 50)}...`, `Action Plan Phase 3: ${item}`)}
+                            disabled={addingTaskMap[itemKey]}
+                            className="px-1.5 py-0.5 rounded bg-foreground/[0.04] hover:bg-foreground/[0.08] text-zinc-400 hover:text-white text-[9px] shrink-0 cursor-pointer"
+                          >
+                            {addingTaskMap[itemKey] ? "..." : "+ Task"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    );
+  };
 
   // Simulated progress steps during analysis
   const progressSteps = [
@@ -55,6 +447,7 @@ export default function SpyDashboardPage() {
     }
     setResult(res);
     setIsLoading(false);
+    fetchHistory(); // Refresh history list
   };
 
   const handleAnalyzeError = (err: string) => {
@@ -87,8 +480,45 @@ export default function SpyDashboardPage() {
 
   const copyToClipboard = () => {
     if (result?.data?.aiReport) {
-      navigator.clipboard.writeText(result.data.aiReport);
-      alert("AI Intelligence Report copied to clipboard!");
+      const textToCopy = typeof result.data.aiReport === "string"
+        ? result.data.aiReport
+        : JSON.stringify(result.data.aiReport, null, 2);
+      
+      let finalCopyText = textToCopy;
+      try {
+        const parsed = JSON.parse(textToCopy);
+        if (parsed && typeof parsed === "object") {
+          // Format it as clean readable text for easy sharing
+          finalCopyText = `SWOT COMPETITIVE AUDIT REPORT
+
+EXECUTIVE SUMMARY:
+${parsed.executiveSummary || ""}
+
+STRENGTHS:
+${parsed.strengths?.map((s: string) => `- ${s}`).join("\n") || ""}
+
+WEAKNESSES:
+${parsed.weaknesses?.map((w: string) => `- ${w}`).join("\n") || ""}
+
+OPPORTUNITIES:
+${parsed.opportunities?.map((o: string) => `- ${o}`).join("\n") || ""}
+
+THREATS:
+${parsed.threats?.map((t: string) => `- ${t}`).join("\n") || ""}
+
+30-DAY TIMELINE:
+- Days 1-10:
+${parsed.planDays1to10?.map((p: string) => `  * ${p}`).join("\n") || ""}
+- Days 11-20:
+${parsed.planDays11to20?.map((p: string) => `  * ${p}`).join("\n") || ""}
+- Days 21-30:
+${parsed.planDays21to30?.map((p: string) => `  * ${p}`).join("\n") || ""}
+`;
+        }
+      } catch (e) {}
+
+      navigator.clipboard.writeText(finalCopyText);
+      alert("Comparative Report copied to clipboard!");
     }
   };
 
@@ -113,6 +543,41 @@ export default function SpyDashboardPage() {
         onAnalyzeComplete={handleAnalyzeComplete}
         onAnalyzeError={handleAnalyzeError}
       />
+
+      {/* History Archive list */}
+      {!isLoading && !result && historyList.length > 0 && (
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between border-b border-border-color pb-3">
+            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+              📜 Past Compare Audits
+            </h3>
+            <span className="text-[10px] text-zinc-550 font-medium">Select a past run to view telemetry instantly</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {historyList.map((item) => (
+              <div 
+                key={item.id}
+                onClick={() => handleSelectHistoryItem(item)}
+                className="p-4 rounded-2xl bg-card-bg/20 border border-card-border/80 hover:border-violet-500/30 hover:scale-[1.01] hover:bg-card-bg/40 transition-all cursor-pointer flex flex-col justify-between gap-3 group"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 text-xs text-white font-bold truncate">
+                    <span className="text-violet-400 font-extrabold">{item.targets[0] || "Target A"}</span>
+                    <span className="text-zinc-500 text-[10px] lowercase font-normal">vs</span>
+                    <span className="text-cyan-400 font-extrabold">{item.targets[1] || "Target B"}</span>
+                  </div>
+                  <p className="text-[9px] text-zinc-550 mt-1">
+                    Expires: {new Date(item.expiresAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="text-[10px] text-violet-400 group-hover:text-violet-300 font-bold text-right transition-colors">
+                  Load Audit &gt;
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -563,6 +1028,7 @@ export default function SpyDashboardPage() {
                 </div>
                 
                 <button
+                  type="button"
                   onClick={copyToClipboard}
                   className="px-3.5 py-1.5 rounded-xl bg-card-bg border border-card-border text-zinc-300 hover:text-white text-[11px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                 >
@@ -574,7 +1040,20 @@ export default function SpyDashboardPage() {
               </div>
 
               <div className="p-4 md:p-6 bg-foreground/[0.01] border border-card-border/60 rounded-2xl">
-                {renderMarkdown(result.data.aiReport)}
+                {(() => {
+                  let parsedReport = null;
+                  try {
+                    parsedReport = typeof result.data.aiReport === "string" ? JSON.parse(result.data.aiReport) : result.data.aiReport;
+                  } catch (e) {
+                    // Raw markdown string fallback
+                  }
+
+                  if (parsedReport && typeof parsedReport === "object" && parsedReport.strengths) {
+                    return renderStructuredReport(parsedReport);
+                  } else {
+                    return renderMarkdown(typeof result.data.aiReport === "string" ? result.data.aiReport : JSON.stringify(result.data.aiReport));
+                  }
+                })()}
               </div>
             </div>
           )}
