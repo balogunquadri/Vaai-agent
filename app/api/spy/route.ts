@@ -3,6 +3,34 @@ import { createAdminClient } from "@insforge/sdk";
 import { deriveUserIdFromRequest } from "../../../lib/authHelpers";
 import { SpyRequestPayload } from "../../../types/spy";
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 export async function POST(request: Request) {
   try {
     const payload: SpyRequestPayload = await request.json();
@@ -46,16 +74,17 @@ export async function POST(request: Request) {
     if (!cacheFetchErr && cachedRows && cachedRows.length > 0) {
       // Look for a valid (non-expired) cache entry
       const activeCache = cachedRows.find((row: any) => {
-        const state = row.state || {};
+        const state = parseState(row.state);
         return state.key === cacheKey && new Date(state.expiresAt).getTime() > Date.now();
       });
 
       if (activeCache) {
         console.log(`[API Spy] Cache hit for key: ${cacheKey}`);
+        const parsedState = parseState(activeCache.state);
         return NextResponse.json({
           success: true,
           fromCache: true,
-          data: activeCache.state.payload,
+          data: parsedState.payload,
         });
       }
     }

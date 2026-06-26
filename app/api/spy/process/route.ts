@@ -3,6 +3,34 @@ import { createAdminClient } from "@insforge/sdk";
 import { SpyService } from "../../../../lib/services/spyService";
 import { runIntelligenceEngine } from "../../../../lib/services/intelligenceEngine";
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 export async function POST(request: Request) {
   try {
     const { jobId } = await request.json();
@@ -28,7 +56,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Job status row not found." }, { status: 404 });
     }
 
-    const jobState = jobRow.state || {};
+    const jobState = parseState(jobRow.state);
     
     // If the job is already processing or completed, skip duplicate executions
     if (jobState.status === "running" || jobState.status === "completed") {
@@ -63,13 +91,14 @@ export async function POST(request: Request) {
       .eq("connected", true);
 
     const activeCache = cachedRows?.find((row: any) => {
-      const state = row.state || {};
+      const state = parseState(row.state);
       return state.key === cacheKey && new Date(state.expiresAt).getTime() > Date.now();
     });
 
     if (activeCache) {
       console.log(`[Spy Process Worker] Cache hit during process startup for ${cacheKey}`);
-      const cachedPayload = activeCache.state.payload;
+      const parsedActiveCacheState = parseState(activeCache.state);
+      const cachedPayload = parsedActiveCacheState.payload;
 
       // Update job to completed with cached payload
       await admin.database
@@ -167,7 +196,7 @@ export async function POST(request: Request) {
             .from("integrations")
             .update({
               state: {
-                ...(jobRow.state || {}),
+                ...parseState(jobRow.state),
                 status: "failed",
                 completedAt: new Date().toISOString(),
                 error: err.message || String(err)

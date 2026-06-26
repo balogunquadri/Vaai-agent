@@ -26,6 +26,34 @@ function computeNextRunTime(scheduledTime: string, frequency: string): string {
   return target.toISOString();
 }
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 // GET: Retrieve user's schedules and briefing results
 export async function GET(request: Request) {
   try {
@@ -52,16 +80,17 @@ export async function GET(request: Request) {
     const briefs: any[] = [];
 
     rows?.forEach((row: any) => {
+      const stateObj = parseState(row.state);
       if (row.platform === "briefing_schedule") {
         schedules.push({
           id: row.id,
-          ...row.state,
+          ...stateObj,
           updated_at: row.updated_at,
         });
       } else if (row.platform === "briefing_result") {
         briefs.push({
           id: row.id,
-          ...row.state,
+          ...stateObj,
           updated_at: row.updated_at,
         });
       }
@@ -165,7 +194,7 @@ export async function POST(request: Request) {
       success: true,
       schedule: {
         id: inserted.id,
-        ...inserted.state,
+        ...parseState(inserted.state),
       },
     });
   } catch (error: any) {
@@ -202,7 +231,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Briefing schedule not found" }, { status: 404 });
     }
 
-    const state = scheduleRow.state || {};
+    const state = parseState(scheduleRow.state);
     const { name, selectedApps = [], selectedCategories = [] } = state;
 
     const allLogs: Record<string, any[]> = {};

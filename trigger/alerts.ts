@@ -2,11 +2,40 @@ import { schedules, task } from "@trigger.dev/sdk/v3";
 import { createAdminClient } from "@insforge/sdk";
 import { getValidGmailToken, extractEmailBody, extractHtmlFallback } from "../lib/gmail";
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 // Evaluation worker task for a single user's alert rule
 export const evaluateAlertRule = task({
   id: "evaluate-alert-rule",
   run: async (payload: { userId: string; ruleId: string; state: any }) => {
-    const { userId, ruleId, state } = payload;
+    const { userId, ruleId, state: rawState } = payload;
+    const state = parseState(rawState);
     console.log(`Evaluating alert rule "${state.name}" (${ruleId}) for user ${userId}`);
 
     const admin = createAdminClient({
@@ -26,8 +55,9 @@ export const evaluateAlertRule = task({
 
     const existingSourceIds = new Set<string>();
     oldTriggers?.forEach((t: any) => {
-      if (t.state?.sourceId) {
-        existingSourceIds.add(t.state.sourceId);
+      const stateObj = parseState(t.state);
+      if (stateObj?.sourceId) {
+        existingSourceIds.add(stateObj.sourceId);
       }
     });
 
@@ -218,7 +248,7 @@ export const checkAlertsSchedule = schedules.task({
       await evaluateAlertRule.trigger({
         userId: ruleRow.user_id,
         ruleId: ruleRow.id,
-        state: ruleRow.state,
+        state: parseState(ruleRow.state),
       });
     }
   }

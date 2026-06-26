@@ -127,9 +127,17 @@ export async function GET(request: Request) {
     if (error) throw error;
 
     if (cached && cached.state) {
+      let parsedCache = cached.state;
+      if (typeof parsedCache === "string") {
+        try {
+          parsedCache = JSON.parse(parsedCache);
+        } catch (e) {
+          console.error("Failed to parse cached brief in GET:", e);
+        }
+      }
       return NextResponse.json({
         success: true,
-        cached: cached.state,
+        cached: parsedCache,
         updated_at: cached.updated_at,
       });
     }
@@ -169,7 +177,15 @@ export async function POST(request: Request) {
         const cacheAge = new Date().getTime() - new Date(cached.updated_at).getTime();
         // 2 hours in milliseconds = 7200000
         if (cacheAge < 7200000) {
-          return NextResponse.json(cached.state);
+          let parsedState = cached.state;
+          if (typeof parsedState === "string") {
+            try {
+              parsedState = JSON.parse(parsedState);
+            } catch (e) {
+              console.error("Failed to parse cached brief state in POST:", e);
+            }
+          }
+          return NextResponse.json(parsedState);
         }
       }
     }

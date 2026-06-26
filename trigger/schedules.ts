@@ -3,6 +3,34 @@ import { createAdminClient } from "@insforge/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { getValidGmailToken, extractEmailBody, extractHtmlFallback } from "../lib/gmail";
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 // Standard OpenAPI 3.0 response schema for scheduled briefings
 const scheduledBriefingSchema = {
   type: "OBJECT",
@@ -291,7 +319,7 @@ export const checkBriefingsSchedule = schedules.task({
     
     // Check which schedules are due
     for (const schedule of schedulesList) {
-      const state = schedule.state || {};
+      const state = parseState(schedule.state);
       const nextRunTime = state.nextRun ? new Date(state.nextRun) : null;
 
       if (nextRunTime && nextRunTime.getTime() <= now.getTime()) {

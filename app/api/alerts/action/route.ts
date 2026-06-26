@@ -22,6 +22,34 @@ async function generateAiContent(prompt: string): Promise<string> {
   }
 }
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -88,7 +116,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Alert not found and action unsupported" }, { status: 404 });
     }
 
-    const state = row.state || {};
+    const state = parseState(row.state);
 
     // 2. Perform DB mutation based on action type
     if (action === "resolve") {

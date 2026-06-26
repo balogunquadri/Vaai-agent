@@ -1,6 +1,34 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@insforge/sdk";
 
+// Helper to parse state safely and auto-repair character-spread corruption
+function parseState(state: any): any {
+  if (!state) return {};
+  let stateObj = state;
+  if (typeof stateObj === "string") {
+    try {
+      stateObj = JSON.parse(stateObj);
+    } catch (e) {
+      console.error("Failed to parse state string:", e);
+      return {};
+    }
+  }
+  while (stateObj && typeof stateObj === "object" && "0" in stateObj) {
+    const keys = Object.keys(stateObj).filter(k => /^\d+$/.test(k)).map(Number).sort((a, b) => a - b);
+    let str = "";
+    for (const k of keys) {
+      str += stateObj[k];
+    }
+    try {
+      stateObj = JSON.parse(str);
+    } catch (e) {
+      console.error("Failed to parse reconstructed state:", e);
+      break;
+    }
+  }
+  return stateObj || {};
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -25,7 +53,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: "Job status not found." }, { status: 404 });
     }
 
-    const jobState = jobRow.state || {};
+    const jobState = parseState(jobRow.state);
     const { status, createdAt } = jobState;
 
     // Self-healing fallback: If job remains pending for more than 5 seconds, re-trigger background processing
