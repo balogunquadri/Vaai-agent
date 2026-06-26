@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../../components/AuthProvider";
+import { useAuth } from "./AuthProvider";
 import { insforge } from "@/lib/insforge";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -31,7 +31,7 @@ interface Platform {
   mcpTools: MCPTool[];
 }
 
-export default function IntegrationsPage() {
+export default function IntegrationsTab() {
   const { user } = useAuth();
   const [connections, setConnections] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "../components/AuthProvider";
 import { insforge } from "@/lib/insforge";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -14,7 +15,9 @@ import {
   AlertCircleIcon,
   UserIcon,
   PlugIcon,
+  Grid2X2Icon,
 } from "@hugeicons/core-free-icons";
+import IntegrationsTab from "../components/IntegrationsTab";
 
 // Type definitions for Dashboard States
 interface PriorityItem {
@@ -169,7 +172,20 @@ const mcpToolsRegistry: Record<string, string[]> = {
   tango: ["tango_get_workflows"]
 };
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [activeDashboardTab, setActiveDashboardTab] = useState<"overview" | "integrations">("overview");
+
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "integrations") {
+      setActiveDashboardTab("integrations");
+    } else {
+      setActiveDashboardTab("overview");
+    }
+  }, [searchParams]);
+
   const { profile, user } = useAuth();
   const [connections, setConnections] = useState<Record<string, boolean>>({});
   const [connectedAppRows, setConnectedAppRows] = useState<any[]>([]);
@@ -784,6 +800,19 @@ export default function DashboardPage() {
     }
   }, [user]);
 
+  // Automatically fetch data for the active tab (Gmail or other app feed items)
+  useEffect(() => {
+    if (user) {
+      if (activeTab === "gmail" && connections.gmail) {
+        fetchGmailEmails();
+      } else if (activeTab === "whatsapp" && connections.whatsapp) {
+        searchWhatsAppChats("");
+      } else if (activeTab && activeTab !== "gmail" && activeTab !== "whatsapp" && connections[activeTab]) {
+        fetchActiveTabFeed(activeTab);
+      }
+    }
+  }, [user, activeTab, connections]);
+
   // Clean Markdown-to-HTML formatter to render the generated brief beautifully
   const renderMarkdown = (text: string) => {
     if (!text) return null;
@@ -868,13 +897,47 @@ export default function DashboardPage() {
         </div>
 
         {/* Global Action Header */}
+        {activeDashboardTab === "overview" && (
+          <button
+            onClick={handleRefresh}
+            disabled={loadingBrief}
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold tracking-wide flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50 transition-all"
+          >
+            <HugeiconsIcon icon={PlayIcon} size={14} className={loadingBrief ? "animate-spin" : ""} />
+            {loadingBrief ? "Updating brief..." : "Refresh / Regenerate"}
+          </button>
+        )}
+      </div>
+
+      {/* Premium Tab Switcher switcher bar at the top */}
+      <div className="flex items-center gap-2 p-1.5 bg-card-bg/40 border border-border-color/60 rounded-2xl w-fit">
         <button
-          onClick={handleRefresh}
-          disabled={loadingBrief}
-          className="px-5 py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold tracking-wide flex items-center gap-2 cursor-pointer shadow-lg disabled:opacity-50 transition-all"
+          onClick={() => {
+            setActiveDashboardTab("overview");
+            router.push("/dashboard");
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeDashboardTab === "overview"
+              ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/10 border border-violet-500/20"
+              : "text-zinc-400 border border-transparent hover:text-white hover:bg-foreground/[0.02]"
+          }`}
         >
-          <HugeiconsIcon icon={PlayIcon} size={14} className={loadingBrief ? "animate-spin" : ""} />
-          {loadingBrief ? "Updating brief..." : "Refresh / Regenerate"}
+          <HugeiconsIcon icon={Grid2X2Icon} size={14} />
+          Overview
+        </button>
+        <button
+          onClick={() => {
+            setActiveDashboardTab("integrations");
+            router.push("/dashboard?tab=integrations");
+          }}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+            activeDashboardTab === "integrations"
+              ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/10 border border-violet-500/20"
+              : "text-zinc-400 border border-transparent hover:text-white hover:bg-foreground/[0.02]"
+          }`}
+        >
+          <HugeiconsIcon icon={PlugIcon} size={14} />
+          Integrations
         </button>
       </div>
 
@@ -884,8 +947,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {activeDashboardTab === "overview" ? (
+        <>
+          {/* Stats Cards Row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Important Stats Card */}
         <div className="glass-panel rounded-3xl p-6 border border-border-color relative overflow-hidden group hover:scale-[1.01] hover:border-red-500/30 transition-all duration-300">
@@ -1917,7 +1982,26 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+        </>
+      ) : (
+        <div className="animate-fade-in">
+          <IntegrationsTab />
+        </div>
+      )}
 
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-zinc-400 text-xs">Loading dashboard...</p>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

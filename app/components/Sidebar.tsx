@@ -28,7 +28,7 @@ export default function Sidebar() {
     { label: "AI Agent", icon: AiBrain01Icon, bg: "bg-purple-600", path: "/dashboard/ai-agent" },
     { label: "Briefing", icon: NotebookIcon, bg: "bg-amber-600", path: "/dashboard/briefing" },
     { label: "Spy", icon: AiSearchIcon, bg: "bg-cyan-600", path: "/dashboard/spy" },
-    { label: "Integrations", icon: PlugIcon, bg: "bg-pink-600", path: "/dashboard/integrations" },
+    { label: "Integrations", icon: PlugIcon, bg: "bg-pink-600", path: "/dashboard?tab=integrations" },
     { label: "Alerts", icon: BellIcon, bg: "bg-rose-600", path: "/dashboard/alerts" },
     { label: "Settings", icon: Settings01Icon, bg: "bg-zinc-600", path: "/dashboard/settings" },
   ];
@@ -66,6 +66,9 @@ export default function Sidebar() {
       const basePath = itemPath.split("?")[0];
       const tabName = itemPath.split("=")[1];
       return pathname === basePath && typeof window !== "undefined" && window.location.search.includes(tabName);
+    }
+    if (itemPath === "/dashboard") {
+      return pathname === "/dashboard" && (typeof window === "undefined" || !window.location.search.includes("tab=integrations"));
     }
     return pathname === itemPath;
   };
