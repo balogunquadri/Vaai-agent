@@ -81,6 +81,45 @@ async function executeTool(userId: string, toolName: string, args: any = {}, use
   throw new Error(`Gmail adapter: unknown tool ${toolName}`);
 }
 
-const gmailAdapter: Adapter = { getRecentItems, executeTool };
+async function getToolSchemas(userId: string) {
+  return [
+    {
+      name: "gmail_list_messages",
+      description: "Fetch a list of recent emails in the user's Gmail inbox. Can search/filter using search query 'q'.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          q: { type: "STRING", description: "Optional Gmail search query filter (e.g. 'is:unread', 'from:billing')." }
+        }
+      }
+    },
+    {
+      name: "gmail_get_message",
+      description: "Retrieve the full details and content body of a specific email by ID.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          id: { type: "STRING", description: "The unique Gmail message ID." }
+        },
+        required: ["id"]
+      }
+    },
+    {
+      name: "gmail_create_draft",
+      description: "Create an email draft response in Gmail for the user to review and send later.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          to: { type: "STRING", description: "Recipient email address." },
+          subject: { type: "STRING", description: "Subject line of the email." },
+          body: { type: "STRING", description: "Text content of the draft email." }
+        },
+        required: ["to", "subject", "body"]
+      }
+    }
+  ];
+}
+
+const gmailAdapter: Adapter = { getRecentItems, executeTool, getToolSchemas };
 
 export default gmailAdapter;

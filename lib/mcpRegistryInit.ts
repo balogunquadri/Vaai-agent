@@ -11,8 +11,10 @@ import gcalAdapter from "./adapters/googleCalendarAdapter";
 import zoomAdapter from "./adapters/zoomAdapter";
 import githubAdapter from "./adapters/githubAdapter";
 import gdriveAdapter from "./adapters/googleDriveAdapter";
-import telegramAdapter from "./adapters/telegramAdapter";
+import telegramAdapter from "./adapters/telegram";
 import outlookAdapter from "./adapters/outlookAdapter";
+import gmailAdapter from "./adapters/gmailAdapter";
+import whatsappAdapter from "./adapters/whatsappAdapter";
 
 // Register built-in adapters here. Additional adapters can be registered elsewhere.
 registerAdapter("slack", slackAdapter as any);
@@ -29,5 +31,7 @@ registerAdapter("github", githubAdapter as any);
 registerAdapter("google_drive", gdriveAdapter as any);
 registerAdapter("telegram", telegramAdapter as any);
 registerAdapter("outlook", outlookAdapter as any);
+registerAdapter("gmail", gmailAdapter as any);
+registerAdapter("whatsapp", whatsappAdapter as any);
 
 export default null;

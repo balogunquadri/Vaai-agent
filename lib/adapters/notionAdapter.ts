@@ -60,9 +60,43 @@ async function executeTool(userId: string, toolName: string, args: any = {}, use
   throw new Error(`Notion adapter: tool ${toolName} not implemented`);
 }
 
+async function getToolSchemas(userId: string) {
+  return [
+    {
+      name: "notion_get_page",
+      description: "Retrieve structural content and metadata property attributes from a Notion page ID.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          pageId: { type: "STRING", description: "The Notion page ID." }
+        },
+        required: ["pageId"]
+      }
+    },
+    {
+      name: "notion_append_block",
+      description: "Append sibling block elements into the structural body children of a parent Notion Page.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          pageId: { type: "STRING", description: "The page ID to append contents to." },
+          blocks: {
+            type: "ARRAY",
+            description: "List of Notion block structures/JSON configurations.",
+            items: { type: "OBJECT" }
+          }
+        },
+        required: ["pageId", "blocks"]
+      }
+    }
+  ];
+}
+
 const notionAdapter: Adapter = {
   getRecentItems,
   executeTool,
+  getToolSchemas
 };
 
 export default notionAdapter;
+

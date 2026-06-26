@@ -57,6 +57,46 @@ export async function executeTool(userId: string, toolName: string, args: any = 
   }
 }
 
-export const adapter = { validateConfig, getRecentItems, executeTool };
+export async function getToolSchemas(userId: string) {
+  return [
+    {
+      name: "telegram_get_recent_messages",
+      description: "Fetch recent dialogs/chats for the user.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          limit: { type: "INTEGER", description: "Limit number of messages to fetch." }
+        }
+      }
+    },
+    {
+      name: "telegram_send_message",
+      description: "Send a message to a specific Telegram chat/user.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          chatId: { type: "STRING", description: "Telegram chat or user ID." },
+          text: { type: "STRING", description: "Message text." }
+        },
+        required: ["chatId", "text"]
+      }
+    },
+    {
+      name: "telegram_read_chat_history",
+      description: "Read chat history messages from a specific Telegram channel or conversation.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          chatId: { type: "STRING", description: "Telegram chat or group ID." },
+          limit: { type: "INTEGER", description: "Number of historical messages to read." }
+        },
+        required: ["chatId"]
+      }
+    }
+  ];
+}
+
+export const adapter = { validateConfig, getRecentItems, executeTool, getToolSchemas };
 
 export default adapter;
+

@@ -1,408 +1,60 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@insforge/sdk";
-import { whatsappManager } from "@/lib/whatsapp";
-import { getValidGmailToken } from "@/lib/gmail";
+import { sanitizeInput, redactPII, moderateOutput } from "../../../../lib/services/guardrails";
+import { retrieveRagContext } from "../../../../lib/services/ragService";
+import { logLlmTelemetry } from "../../../../lib/services/observabilityService";
+import mcpRegistry from "../../../../lib/mcpRegistry";
 
-// Helper for Constructing Raw base64url Email
-const constructRawEmail = (to: string, subject: string, body: string) => {
-  const str = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    "Content-Type: text/plain; charset=\"UTF-8\"",
-    "",
-    body
-  ].join("\n");
-  return Buffer.from(str).toString("base64url");
-};
-
-// Gmail tool execution helper
-async function executeGmailTool(userId: string, toolName: string, args: any) {
-  try {
-    let accessToken = await getValidGmailToken(userId);
-    if (!accessToken) {
-      return { error: "Gmail is not connected. Please connect Gmail in the Integrations dashboard." };
-    }
-
-    const makeRequest = async (url: string, init?: RequestInit): Promise<Response> => {
-      let res = await fetch(url, {
-        ...init,
-        headers: {
-          ...init?.headers,
-          Authorization: `Bearer ${accessToken}`,
-        }
-      });
-
-      if (res.status === 401) {
-        // Attempt to refresh Gmail oauth token
-        const refreshRes = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/api/auth/gmail/token?userId=${userId}`);
-        if (refreshRes.ok) {
-          const tokenData = await refreshRes.json();
-          if (tokenData.accessToken) {
-            accessToken = tokenData.accessToken;
-            res = await fetch(url, {
-              ...init,
-              headers: {
-                ...init?.headers,
-                Authorization: `Bearer ${accessToken}`,
-              }
-            });
-          }
-        }
-      }
-      return res;
-    };
-
-    if (toolName === "gmail_list_messages") {
-      const q = args.q ? `&q=${encodeURIComponent(args.q)}` : "";
-      const res = await makeRequest(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5${q}`);
-      if (!res.ok) return { error: `Gmail list messages failed: ${res.statusText}` };
-      const listData = await res.json();
-
-      const details = await Promise.all((listData.messages || []).map(async (msg: any) => {
-        const dRes = await makeRequest(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`);
-        if (!dRes.ok) return null;
-        const dData = await dRes.json();
-        const headers = dData.payload?.headers || [];
-        const fromHeader = headers.find((h: any) => h.name.toLowerCase() === "from")?.value || "Unknown";
-        const subjectHeader = headers.find((h: any) => h.name.toLowerCase() === "subject")?.value || "(No Subject)";
-        const dateHeader = headers.find((h: any) => h.name.toLowerCase() === "date")?.value || "";
-        return {
-          id: msg.id,
-          from: fromHeader,
-          subject: subjectHeader,
-          snippet: dData.snippet,
-          date: dateHeader
-        };
-      }));
-      return details.filter(Boolean);
-    }
-
-    if (toolName === "gmail_get_message") {
-      const res = await makeRequest(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${args.id}`);
-      if (!res.ok) return { error: `Gmail get message failed: ${res.statusText}` };
-      const dData = await res.json();
-      const headers = dData.payload?.headers || [];
-      const fromHeader = headers.find((h: any) => h.name.toLowerCase() === "from")?.value || "Unknown";
-      const subjectHeader = headers.find((h: any) => h.name.toLowerCase() === "subject")?.value || "(No Subject)";
-      const dateHeader = headers.find((h: any) => h.name.toLowerCase() === "date")?.value || "";
-      return {
-        id: dData.id,
-        from: fromHeader,
-        subject: subjectHeader,
-        body: dData.snippet || dData.body || "",
-        date: dateHeader
-      };
-    }
-
-    if (toolName === "gmail_create_draft") {
-      const raw = constructRawEmail(args.to, args.subject, args.body);
-      const res = await makeRequest(`https://gmail.googleapis.com/gmail/v1/users/me/drafts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: { raw } })
-      });
-      if (!res.ok) return { error: `Gmail create draft failed: ${res.statusText}` };
-      return await res.json();
-    }
-
-  } catch (err: any) {
-    return { error: err.message || "Failed to execute Gmail tool." };
-  }
-  return { error: "Unknown Gmail tool" };
-}
-
-// Tool calls execution center
-async function executeTool(userId: string, toolName: string, args: any) {
-  console.log(`Executing tool: ${toolName} with args:`, args);
-
-  // 1. Gmail Tools
-  if (toolName.startsWith("gmail_")) {
-    return await executeGmailTool(userId, toolName, args);
-  }
-
-  // 2. WhatsApp Tools
-  if (toolName.startsWith("whatsapp_")) {
-    try {
-      const result = await whatsappManager.executeMcp(userId, toolName, args || {});
-      return result;
-    } catch (err: any) {
-      console.error(`WhatsApp MCP tool ${toolName} execution error:`, err);
-      // Fallback response for offline simulator WhatsApp session
-      if (toolName === "whatsapp_get_recent_messages") {
-        return [
-          { chatId: "+919876543210@s.whatsapp.net", name: "Customer", lastMessage: "Can you send over the link to schedule the appointment?", timestamp: "03:45 PM" },
-          { chatId: "+15550241@s.whatsapp.net", name: "Alex Product", lastMessage: "Hey, do you have the slides for tomorrow's review?", timestamp: "10:45 AM" }
-        ];
-      }
-      if (toolName === "whatsapp_read_chat_history") {
-        return {
-          chatId: args.chatId,
-          messages: [
-            { id: "1", fromMe: false, text: "Hey Harry, let's schedule an appointment.", timestamp: "Yesterday" },
-            { id: "2", fromMe: true, text: "Sure, let's coordinate.", timestamp: "Yesterday" },
-            { id: "3", fromMe: false, text: "Can you send over the link to schedule the appointment?", timestamp: "Today, 03:45 PM" }
-          ]
-        };
-      }
-      return { error: err.message || "WhatsApp tool execution failed." };
-    }
-  }
-
-  // 3. Slack Tools
-  if (toolName === "slack_list_channels") {
-    return [
-      { id: "C1", name: "general", topic: "General discussion" },
-      { id: "C2", name: "dev-ops", topic: "Build alerts & monitoring" },
-      { id: "C3", name: "product-design", topic: "Figma alignment & design changes" }
-    ];
-  }
-  if (toolName === "slack_post_message") {
-    return {
-      success: true,
-      channel: args.channel,
-      ts: Date.now().toString(),
-      text: args.text,
-      message: `Posted to Slack channel #${args.channel} successfully.`
-    };
-  }
-
-  // 4. Outlook Tools
-  if (toolName === "outlook_list_messages") {
-    return [
-      { id: "out_1", from: "hr@company.com", subject: "Performance Review Q2", snippet: "Please check your feedback and submit before Friday.", date: "Today" },
-      { id: "out_2", from: "it-support@company.com", subject: "Mandatory Password Reset Alert", snippet: "Security policy requires you to change your active credentials.", date: "Yesterday" }
-    ];
-  }
-  if (toolName === "outlook_send_message") {
-    return {
-      success: true,
-      messageId: `outlook_draft_${Date.now()}`,
-      to: args.to,
-      subject: args.subject,
-      message: `Outlook email sent to ${args.to} successfully.`
-    };
-  }
-
-  // 5. Discord Tools
-  if (toolName === "discord_post_message") {
-    return {
-      success: true,
-      channelId: args.channelId,
-      messageId: `discord_${Date.now()}`,
-      content: args.content,
-      message: `Discord notification posted to channel ID ${args.channelId} successfully.`
-    };
-  }
-
-  // 6. LinkedIn Tools
-  if (toolName === "linkedin_post_update") {
-    return {
-      success: true,
-      updateUrn: `urn:li:activity:${Date.now()}`,
-      text: args.text,
-      message: `LinkedIn post published successfully.`
-    };
-  }
-
-  // 7. Telegram Tools
-  if (toolName === "telegram_get_messages") {
-    return [
-      { id: "t_1", sender: "Alex Architect", text: "Are the staging builds passing?", timestamp: "04:10 PM" },
-      { id: "t_2", sender: "Manager", text: "Verify the domain renewal is completed.", timestamp: "01:25 PM" }
-    ];
-  }
-  if (toolName === "telegram_send_message") {
-    return {
-      success: true,
-      chatId: args.chatId,
-      messageId: `telegram_${Date.now()}`,
-      text: args.text,
-      message: `Telegram message sent successfully.`
-    };
-  }
-
-  return { error: `Unsupported tool: ${toolName}` };
-}
-
-// Function Declarations list for Gemini AI model
-const functionDeclarations = [
-  {
-    name: "gmail_list_messages",
-    description: "Fetch a list of recent emails in the user's Gmail inbox. Can search/filter using search query 'q'.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        q: { type: "STRING", description: "Optional Gmail search query filter (e.g. 'is:unread', 'from:billing')." }
-      }
-    }
-  },
-  {
-    name: "gmail_get_message",
-    description: "Retrieve the full details and content body of a specific email by ID.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        id: { type: "STRING", description: "The unique Gmail message ID." }
-      },
-      required: ["id"]
-    }
-  },
-  {
-    name: "gmail_create_draft",
-    description: "Create an email draft response in Gmail for the user to review and send later.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        to: { type: "STRING", description: "Recipient email address." },
-        subject: { type: "STRING", description: "Subject line of the email." },
-        body: { type: "STRING", description: "Text content of the draft email." }
-      },
-      required: ["to", "subject", "body"]
-    }
-  },
-  {
-    name: "whatsapp_get_recent_messages",
-    description: "Fetch the latest messages from all recent WhatsApp chats.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        limit: { type: "INTEGER", description: "Optional limit of chats to fetch (defaults to 5)." }
-      }
-    }
-  },
-  {
-    name: "whatsapp_read_chat_history",
-    description: "Retrieve the full chat message history/logs for a specific WhatsApp JID/chatId.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        chatId: { type: "STRING", description: "The WhatsApp chatId or JID (e.g. '12345@s.whatsapp.net')." }
-      },
-      required: ["chatId"]
-    }
-  },
-  {
-    name: "whatsapp_send_message",
-    description: "Send a text message directly to a WhatsApp phone number or JID.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        to: { type: "STRING", description: "The recipient's phone number or WhatsApp JID." },
-        message: { type: "STRING", description: "Text content to transmit." }
-      },
-      required: ["to", "message"]
-    }
-  },
-  {
-    name: "whatsapp_search_chats",
-    description: "Find a contact or chatId in WhatsApp matching a query string.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        query: { type: "STRING", description: "Search term like contact name or phone number." }
-      },
-      required: ["query"]
-    }
-  },
-  {
-    name: "slack_list_channels",
-    description: "List all active Slack workspace channels available for alerts.",
-    parameters: {
-      type: "OBJECT",
-      properties: {}
-    }
-  },
-  {
-    name: "slack_post_message",
-    description: "Post a message or alert to a specific Slack channel.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        channel: { type: "STRING", description: "Channel name (e.g. 'dev-ops', 'general')." },
-        text: { type: "STRING", description: "Message text content." }
-      },
-      required: ["channel", "text"]
-    }
-  },
-  {
-    name: "outlook_list_messages",
-    description: "Fetch a list of incoming emails from the user's Outlook inbox.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        top: { type: "INTEGER", description: "Optional maximum messages to retrieve." }
-      }
-    }
-  },
-  {
-    name: "outlook_send_message",
-    description: "Send an email to a recipient via Outlook.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        to: { type: "STRING", description: "Recipient email address." },
-        subject: { type: "STRING", description: "Email subject line." },
-        body: { type: "STRING", description: "Body message text." }
-      },
-      required: ["to", "subject", "body"]
-    }
-  },
-  {
-    name: "discord_post_message",
-    description: "Post a notification message to a Discord channel.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        channelId: { type: "STRING", description: "Discord channel ID." },
-        content: { type: "STRING", description: "Content message body." }
-      },
-      required: ["channelId", "content"]
-    }
-  },
-  {
-    name: "linkedin_post_update",
-    description: "Share a professional update or post on the user's LinkedIn profile feed.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        text: { type: "STRING", description: "Content text of the update." }
-      },
-      required: ["text"]
-    }
-  },
-  {
-    name: "telegram_get_messages",
-    description: "Fetch incoming messages for a specific Telegram chatId.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        chatId: { type: "STRING", description: "Telegram chat ID." }
-      },
-      required: ["chatId"]
-    }
-  },
-  {
-    name: "telegram_send_message",
-    description: "Send a message to a Telegram contact or group chat.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        chatId: { type: "STRING", description: "Telegram chat ID." },
-        text: { type: "STRING", description: "Message text." }
-      },
-      required: ["chatId", "text"]
-    }
-  }
-];
+const WRITE_TOOLS = new Set([
+  "gmail_create_draft",
+  "whatsapp_send_message",
+  "slack_post_message",
+  "outlook_send_message",
+  "discord_post_message",
+  "linkedin_post_update",
+  "telegram_send_message"
+]);
 
 export async function POST(request: Request) {
+  const startTime = Date.now();
+  const toolCallsLog: any[] = [];
+  
   try {
     const body = await request.json();
-    const { userId, prompt, history = [], tone = "Warm & Engaging", attachments = [] } = body;
+    const { userId, prompt, history = [], tone = "Warm & Engaging", attachments = [], confirmedToolCall } = body;
 
     if (!userId || !prompt) {
       return NextResponse.json({ error: "Missing required fields userId or prompt" }, { status: 400 });
     }
+
+    // 1. Input Guardrail: Sanitization Check
+    const validation = sanitizeInput(prompt);
+    if (!validation.clean) {
+      console.warn(`[API AI Chat] Input blocked: ${validation.reason}`);
+      
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              text: `⚠️ Input Blocked: ${validation.reason}`, 
+              error: "Input Guardrails Violation" 
+            })}\n\n`)
+          );
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        }
+      });
+    }
+
+    // 2. Input Guardrail: PII Redaction
+    const redactedPrompt = redactPII(prompt);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -412,33 +64,71 @@ export async function POST(request: Request) {
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey });
 
-    // Format the conversation history for Gemini SDK
-    // SDK expects role 'user' or 'model' and parts matching structure
+    // Format conversation history for Gemini
     const contents: any[] = [];
-
-    // Parse incoming chat history into Gemini contents format
     history.forEach((msg: any) => {
-      // Map user/ai role
       const role = msg.sender === "user" ? "user" : "model";
-
-      // If it contains custom system response or tool data, include it as model text parts
       contents.push({
         role,
         parts: [{ text: msg.text }]
       });
     });
 
-    // Append the current user prompt
-    contents.push({
-      role: "user",
-      parts: [{ text: prompt }]
-    });
+    // 3. Human-In-The-Loop Execution: Pre-inject confirmed tool responses
+    if (confirmedToolCall && confirmedToolCall.name) {
+      console.log(`[API AI Chat] Restoring confirmed tool execution:`, confirmedToolCall.name);
+      
+      const startToolTime = Date.now();
+      let toolResult;
+      let success = true;
+      let errorStr = "";
 
-    // If attachments were provided, include a short manifest so the model can reference them
+      try {
+        toolResult = await mcpRegistry.dispatchToolCall(userId, confirmedToolCall.name, confirmedToolCall.args);
+      } catch (err: any) {
+        success = false;
+        errorStr = err.message || String(err);
+        toolResult = { error: errorStr };
+      }
+
+      toolCallsLog.push({
+        name: confirmedToolCall.name,
+        args: confirmedToolCall.args,
+        success,
+        durationMs: Date.now() - startToolTime,
+        error: errorStr || undefined
+      });
+
+      // Inject the tool interaction history so Gemini can synthesize the output
+      contents.push({
+        role: "model",
+        parts: [{ functionCall: confirmedToolCall }]
+      });
+      contents.push({
+        role: "tool",
+        parts: [{
+          functionResponse: {
+            name: confirmedToolCall.name,
+            response: { result: toolResult }
+          }
+        }]
+      });
+    } else {
+      // Append current redacted prompt
+      contents.push({
+        role: "user",
+        parts: [{ text: redactedPrompt }]
+      });
+    }
+
+    // If attachments exist, inject manifest
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
       const attText = attachments.map((a: any) => `- ${a.name} (${a.type || 'file'}, ${a.size || 'unknown'} bytes): ${a.url}`).join("\n");
       contents.push({ role: "user", parts: [{ text: `Attachments:\n${attText}` }] });
     }
+
+    // 4. Retrieval Augmented Generation (RAG) Context injection
+    const ragContext = await retrieveRagContext(userId, redactedPrompt);
 
     const systemInstruction = `
 You are V-AI, a premium workspace AI Virtual Assistant.
@@ -452,17 +142,21 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
 - Suggestion 1
 - Suggestion 2
 [/QUICK_REPLIES]
+${ragContext ? `\nUse the following relevant context retrieved from the user's workspace history to formulate your answer:\n${ragContext}` : ""}
 `;
 
-    const tools = [{ functionDeclarations }];
+    // Fetch tool definitions dynamically from local registry and remote servers
+    const userTools = await mcpRegistry.listUserTools(userId);
+    const tools = userTools && userTools.length > 0 ? [{ functionDeclarations: userTools }] : undefined;
 
     let hasFunctionCalls = true;
     let maxIterations = 5;
     let iteration = 0;
-    let lastResponseContent: any = null;
+    let requiresConfirmation = false;
+    let pendingToolCall: any = null;
 
     // Execution loop for Tool Calls
-    while (hasFunctionCalls && iteration < maxIterations) {
+    while (hasFunctionCalls && iteration < maxIterations && !requiresConfirmation) {
       iteration++;
 
       const response = await ai.models.generateContent({
@@ -470,12 +164,29 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
         contents,
         config: {
           systemInstruction,
-          tools: tools as any,
+          ...(tools ? { tools: tools as any } : {}),
         }
       });
 
       const functionCalls = response.functionCalls;
       if (functionCalls && functionCalls.length > 0) {
+        // Check if any function call is a destructive Write action requiring confirmation
+        for (const call of functionCalls) {
+          const isWrite = WRITE_TOOLS.has(call.name!);
+          // Bypassed if this specific tool call was already confirmed and pre-injected in this run
+          const isAlreadyConfirmed = confirmedToolCall && confirmedToolCall.name === call.name && JSON.stringify(confirmedToolCall.args) === JSON.stringify(call.args);
+
+          if (isWrite && !isAlreadyConfirmed) {
+            requiresConfirmation = true;
+            pendingToolCall = { name: call.name!, args: call.args };
+            break;
+          }
+        }
+
+        if (requiresConfirmation) {
+          break; // Exit loop, tool will not be executed
+        }
+
         // Append the model's message (which contains functionCalls) to contents
         const modelContent = response.candidates?.[0]?.content || {
           role: "model",
@@ -483,14 +194,34 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
         };
         contents.push(modelContent);
 
-        // Execute function calls
+        // Execute safe function calls
         const toolParts = [];
         for (const call of functionCalls) {
-          const result = await executeTool(userId, call.name!, call.args);
+          const startToolTime = Date.now();
+          let toolResult;
+          let success = true;
+          let errorStr = "";
+
+          try {
+            toolResult = await mcpRegistry.dispatchToolCall(userId, call.name!, call.args);
+          } catch (err: any) {
+            success = false;
+            errorStr = err.message || String(err);
+            toolResult = { error: errorStr };
+          }
+
+          toolCallsLog.push({
+            name: call.name!,
+            args: call.args,
+            success,
+            durationMs: Date.now() - startToolTime,
+            error: errorStr || undefined
+          });
+
           toolParts.push({
             functionResponse: {
               name: call.name!,
-              response: { result }
+              response: { result: toolResult }
             }
           });
         }
@@ -502,11 +233,36 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
         });
       } else {
         hasFunctionCalls = false;
-        lastResponseContent = response;
       }
     }
 
-    // Now stream the final text generation from the model
+    // 5. If human confirmation is required for a write tool, exit early with confirmation payload
+    if (requiresConfirmation && pendingToolCall) {
+      console.log(`[API AI Chat] HITL Gate triggered: requires confirmation for tool ${pendingToolCall.name}`);
+      
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ 
+              confirmationRequired: true, 
+              toolCall: pendingToolCall 
+            })}\n\n`)
+          );
+          controller.close();
+        }
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        }
+      });
+    }
+
+    // 6. Otherwise, stream the final response text back to client
     const responseStream = await ai.models.generateContentStream({
       model: "gemini-3.1-flash-lite",
       contents,
@@ -515,17 +271,56 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
       }
     });
 
-    // Stream SSE back to client
+    // Stream SSE back to client and capture telemetry metrics
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
+        let fullText = "";
+        let promptTokens = 0;
+        let candidatesTokens = 0;
+        let totalTokens = 0;
+
         try {
           for await (const chunk of responseStream) {
             const text = chunk.text;
             if (text) {
+              fullText += text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
             }
+            if (chunk.usageMetadata) {
+              promptTokens = chunk.usageMetadata.promptTokenCount || 0;
+              candidatesTokens = chunk.usageMetadata.candidatesTokenCount || 0;
+              totalTokens = chunk.usageMetadata.totalTokenCount || 0;
+            }
           }
+
+          // 7. Output Moderation Guardrail check
+          const moderation = moderateOutput(fullText);
+          if (!moderation.safe) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ 
+                text: `\n\n${moderation.text}`, 
+                error: "Output Moderation Violation" 
+              })}\n\n`)
+            );
+          }
+
+          // 8. Log Telemetry stats (Observability)
+          const latencyMs = Date.now() - startTime;
+          await logLlmTelemetry({
+            userId,
+            model: "gemini-3.1-flash-lite",
+            prompt: redactedPrompt,
+            response: moderation.safe ? fullText : moderation.text,
+            latencyMs,
+            tokensUsed: {
+              promptTokens,
+              candidatesTokens,
+              totalTokens
+            },
+            toolCalls: toolCallsLog
+          });
+
         } catch (err: any) {
           console.error("Streaming error:", err);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: err.message || "Streaming failed." })}\n\n`));
@@ -545,6 +340,25 @@ Always maintain a helpful, premium tone. Suggest 2 or 3 brief quick reply recomm
 
   } catch (error: any) {
     console.error("AI Agent chat API failed:", error);
+    
+    // Log failure telemetry if possible
+    try {
+      const latencyMs = Date.now() - startTime;
+      const body = await request.clone().json();
+      if (body && body.userId) {
+        await logLlmTelemetry({
+          userId: body.userId,
+          model: "gemini-3.1-flash-lite",
+          prompt: redactPII(body.prompt || ""),
+          response: `Error: ${error.message || String(error)}`,
+          latencyMs,
+          toolCalls: toolCallsLog
+        });
+      }
+    } catch (telemetryErr) {
+      console.error("Observability failure during exception log:", telemetryErr);
+    }
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

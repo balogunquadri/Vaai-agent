@@ -37,5 +37,22 @@ async function executeTool(userId: string, toolName: string, args: any = {}, use
   throw new Error(`X adapter: unknown tool ${toolName}`);
 }
 
-const xAdapter: Adapter = { getRecentItems, executeTool };
+async function getToolSchemas(userId: string) {
+  return [
+    {
+      name: "x_post_tweet",
+      description: "Publish a status message update/tweet directly onto the user's Twitter/X timeline.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          text: { type: "STRING", description: "Tweet content message." }
+        },
+        required: ["text"]
+      }
+    }
+  ];
+}
+
+const xAdapter: Adapter = { getRecentItems, executeTool, getToolSchemas };
 export default xAdapter;
+

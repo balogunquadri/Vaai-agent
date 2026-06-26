@@ -6,49 +6,79 @@ VA-AI supports **multi-user operation** for all integrations. Developer API secr
 
 ---
 
-## 🛠️ Architecture Overview
+## 🔌 Hybrid SSE MCP Architecture
+
+VA-AI uses a **Hybrid Model Context Protocol (MCP) Architecture** to orchestrate workspace tool actions. This supports both **local in-process adapters** (for serverless environments and low-latency) and **remote HTTP/SSE-based MCP servers** (for isolated execution sandboxes).
+
+```
+                      ┌───────────────────────────┐
+                      │     V-AI Chat Agent       │
+                      │   (app/api/ai-agent)      │
+                      └─────────────┬─────────────┘
+                                    │
+                                    ▼
+                      ┌───────────────────────────┐
+                      │   Dynamic MCP Registry    │
+                      │    (lib/mcpRegistry)      │
+                      └──────┬─────────────┬──────┘
+                             │             │
+            ┌────────────────┘             └────────────────┐
+            ▼                                               ▼
+┌───────────────────────────┐                  ┌───────────────────────────┐
+│    Local MCP Adapters     │                  │    Remote SSE Clients     │
+│  (in-process / direct)    │                  │  (isolated JSON-RPC/HTTP) │
+│───┬───────────────────────│                  │───┬───────────────────────│
+    │ - WhatsApp/Gmail      │                      │ - Python Sandboxes    │
+    │ - Notion/Slack/Jira   │                      │ - Node/SSE MCP Servers│
+    │ - In-memory / fast    │                      │ - Isolated containers │
+```
 
 To maintain security and enable multiple users to connect their own workspace channels simultaneously:
 
-1. **Developer API Keys & Tokens (`.env` or `.env.local`)**:
-   Global bot tokens, OAuth Client IDs, Client Secrets, and developer personal access tokens are stored securely on the server.
-2. **User Configuration Settings (InsForge Database)**:
-   Specific user preferences (e.g., specific Slack channel IDs, Notion Database IDs, Jira project keys) are entered via the **MCP Settings Modal** on the dashboard and stored in the database's `integrations` table.
-3. **High-Fidelity Simulation Fallback**:
-   If developer tokens are missing from the server `.env`, the integrations engine gracefully falls back to interactive simulated streams. This allows complete UI testing out-of-the-box before deploying production API credentials.
+1. **Symmetric Key Encryption (AES-256-GCM)**:
+   All user-specific integration credentials (like Slack tokens, WhatsApp sessions, or GitHub PATs) written to the `integrations` state database column are encrypted in-flight using standard Node.js `crypto` with the `INSFORGE_KEY_SECRET` environment variable. A fallback mechanism is active to decrypt legacy plain tokens automatically.
+2. **Dynamic Tool Schema Discovery**:
+   Hardcoded function declarations are removed. The agent fetches active integrations for the logged-in user at runtime, queries their tool schemas via `getToolSchemas()`, and dynamically builds the tools declaration list for the Google GenAI SDK.
+3. **Transparent Execution Dispatching**:
+   If the integration's database state contains a `serverUrl` parameter, the dynamic registry routes tool execution queries over HTTP/SSE via the remote JSON-RPC client (`McpSseClient`). Otherwise, the registry runs the tool locally in-process through the platform's local adapter.
 
 ---
 
+
 ## 🔑 Environment Variables Configuration
 
-To enable real API connectivity for the main integration platforms, add the following variables to your server `.env` or `.env.local` file:
+To enable the core application features, database connections, and cryptography services, configure the following global variables in your server `.env` or `.env.local` file. 
+
+*Note: User-specific third-party integration credentials (like Slack tokens, WhatsApp sessions, or GitHub access tokens) are **not** stored in this file. They are entered dynamically via the dashboard UI and saved securely in the database.*
 
 ```env
-# Gmail API (Google OAuth)
-GMAIL_CLIENT_ID=your-google-client-id
-GMAIL_CLIENT_SECRET=your-google-client-secret
+# InsForge SaaS Database Endpoint & Credentials
+NEXT_PUBLIC_INSFORGE_URL=https://api.insforge.com
+INSFORGE_API_KEY=if_key_your_admin_api_token
 
-# WhatsApp Business / WebSockets
-# (Session data is handled dynamically per-user)
+# Cryptography Secret Key (AES-256-GCM cipher secret)
+# Used to encrypt user tokens before writing to the integrations state
+INSFORGE_KEY_SECRET=your-32-byte-hex-or-passphrase
 
-# Slack API
-SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+# Gemini AI API Key
+GEMINI_API_KEY=AIzaSyYourGeminiApiKeyHere
 
-# GitHub API
-GITHUB_PAT=ghp_your-personal-access-token
+# Resend API Key (Used to dispatch account verification and onboarding emails)
+RESEND_API_KEY=re_your_resend_api_key
 
-# Notion API
-NOTION_API_KEY=secret_your-notion-integration-token
+# Global Google OAuth App Credentials (for user Gmail OAuth authentication)
+GMAIL_CLIENT_ID=your-google-oauth-client-id
+GMAIL_CLIENT_SECRET=your-google-oauth-client-secret
 
-# Telegram API
-TELEGRAM_BOT_TOKEN=123456789:your-telegram-bot-token
+# Global Microsoft OAuth App Credentials (for user Outlook OAuth authentication)
+MICROSOFT_CLIENT_ID=your-microsoft-oauth-client-id
+MICROSOFT_CLIENT_SECRET=your-microsoft-oauth-client-secret
 
-# Discord API
-DISCORD_BOT_TOKEN=your-discord-bot-token
-
-# Jira Software API
-JIRA_API_TOKEN=your-jira-api-token
+# Telegram API Client Credentials (required to generate client sessions)
+TELEGRAM_API_ID=your-telegram-api-id-number
+TELEGRAM_API_HASH=your-telegram-api-hash-string
 ```
+
 
 ---
 

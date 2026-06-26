@@ -13,6 +13,7 @@ import {
   FolderOpenIcon,
   AlertCircleIcon,
   UserIcon,
+  PlugIcon,
 } from "@hugeicons/core-free-icons";
 
 // Type definitions for Dashboard States
@@ -1135,6 +1136,15 @@ export default function DashboardPage() {
                 </button>
               );
             })}
+
+            {/* Direct integrations grid shortcut link */}
+            <Link
+              href="/dashboard/integrations"
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:text-white hover:bg-foreground/[0.08] transition-all flex items-center gap-1.5 border border-dashed border-zinc-700/60 cursor-pointer"
+            >
+              <HugeiconsIcon icon={PlugIcon} size={14} />
+              <span>Connect App</span>
+            </Link>
           </div>
         </div>
 

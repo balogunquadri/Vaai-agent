@@ -1,7 +1,8 @@
 import type { Adapter } from "./adapter";
+import { decrypt } from "../crypto";
 
 async function getRecentItems(userId: string, limit = 5, userState: any = {}) {
-  const token = userState?.slackToken || process.env.SLACK_BOT_TOKEN;
+  const token = decrypt(userState?.slackToken) || process.env.SLACK_BOT_TOKEN;
   if (!token) return [];
 
   try {
@@ -25,7 +26,7 @@ async function getRecentItems(userId: string, limit = 5, userState: any = {}) {
 }
 
 async function executeTool(userId: string, toolName: string, args: any = {}, userState: any = {}) {
-  const token = userState?.slackToken || process.env.SLACK_BOT_TOKEN;
+  const token = decrypt(userState?.slackToken) || process.env.SLACK_BOT_TOKEN;
   if (!token) throw new Error("Slack token missing for adapter");
 
   if (toolName === "slack_list_channels") {
@@ -54,9 +55,35 @@ async function executeTool(userId: string, toolName: string, args: any = {}, use
   throw new Error(`Slack adapter: tool ${toolName} not implemented`);
 }
 
+async function getToolSchemas(userId: string) {
+  return [
+    {
+      name: "slack_list_channels",
+      description: "List all active Slack workspace channels available for alerts.",
+      parameters: {
+        type: "OBJECT",
+        properties: {}
+      }
+    },
+    {
+      name: "slack_post_message",
+      description: "Post a message or alert to a specific Slack channel.",
+      parameters: {
+        type: "OBJECT",
+        properties: {
+          channel: { type: "STRING", description: "Channel name (e.g. 'dev-ops', 'general')." },
+          text: { type: "STRING", description: "Message text content." }
+        },
+        required: ["channel", "text"]
+      }
+    }
+  ];
+}
+
 const slackAdapter: Adapter = {
   getRecentItems,
-  executeTool
+  executeTool,
+  getToolSchemas
 };
 
 export default slackAdapter;
