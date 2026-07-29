@@ -43,7 +43,7 @@ export async function PATCH(
 
 async function handleProxyRequest(
   request: NextRequest,
-  params: { params: Promise<{ path: string[] }> },
+  params: Promise<{ path: string[] }>,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 ) {
   try {
@@ -82,8 +82,13 @@ async function handleProxyRequest(
         body,
         query: Object.fromEntries(request.nextUrl.searchParams),
         headers: {
-          'X-Forwarded-For': request.ip || '',
-          'X-Forwarded-Proto': 'https',
+          'X-Forwarded-For':
+            request.headers.get('x-forwarded-for') ||
+            request.headers.get('x-real-ip') ||
+            '',
+          'X-Forwarded-Proto':
+            request.headers.get('x-forwarded-proto') ||
+            'https',
           'User-Agent': request.headers.get('user-agent') || '',
         },
       },

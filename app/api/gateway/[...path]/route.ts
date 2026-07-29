@@ -50,7 +50,7 @@ export async function PATCH(
 
 async function handleGatewayRequest(
   request: NextRequest,
-  params: { params: Promise<{ path: string[] }> }
+  params: Promise<{ path: string[] }>
 ) {
   try {
     const { path: pathArray } = await params;
@@ -86,8 +86,12 @@ async function handleGatewayRequest(
       body,
       headers: {
         'User-Agent': request.headers.get('user-agent') || '',
-        'X-Forwarded-For': request.ip || '0.0.0.0',
-        'X-Forwarded-Proto': request.headers.get('x-forwarded-proto') || 'https',
+        'X-Forwarded-For':
+          request.headers.get('x-forwarded-for') ||
+          request.headers.get('x-real-ip') ||
+          '0.0.0.0',
+        'X-Forwarded-Proto':
+          request.headers.get('x-forwarded-proto') || 'https',
       },
       query: Object.fromEntries(request.nextUrl.searchParams),
     };

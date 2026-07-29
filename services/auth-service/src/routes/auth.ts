@@ -66,7 +66,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Check if user already exists
     const { data: existing, error: checkError } = await insforge
-      .from('users')
+      .database.from('users')
       .select('id')
       .eq('email', email.toLowerCase())
       .limit(1);
@@ -85,7 +85,7 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Create user
     const { data: newUser, error: createError } = await insforge
-      .from('users')
+      .database.from('users')
       .insert({
         email: email.toLowerCase(),
         password_hash: hashedPassword,
@@ -136,7 +136,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Find user
     const { data: users, error } = await insforge
-      .from('users')
+      .database.from('users')
       .select('*')
       .eq('email', email.toLowerCase())
       .limit(1);
@@ -167,7 +167,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
     // Update last login
     await insforge
-      .from('users')
+      .database.from('users')
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', user.id);
 
@@ -210,7 +210,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
 
     // Verify user still exists
     const { data: users, error } = await insforge
-      .from('users')
+      .database.from('users')
       .select('id, email, role')
       .eq('id', decoded.userId)
       .limit(1);
@@ -275,7 +275,7 @@ router.get('/me', verifyAuth, async (req: Request, res: Response) => {
     const insforge = getInsforgeClient();
 
     const { data: users, error } = await insforge
-      .from('users')
+      .database.from('users')
       .select('id, email, first_name, last_name, role, created_at')
       .eq('id', req.userId)
       .limit(1);
@@ -310,7 +310,7 @@ router.put('/profile', verifyAuth, async (req: Request, res: Response) => {
     const insforge = getInsforgeClient();
 
     const { data: updated, error } = await insforge
-      .from('users')
+      .database.from('users')
       .update({
         first_name: firstName,
         last_name: lastName,
@@ -354,7 +354,7 @@ router.post('/change-password', verifyAuth, async (req: Request, res: Response) 
 
     // Get current password hash
     const { data: users, error } = await insforge
-      .from('users')
+      .database.from('users')
       .select('password_hash')
       .eq('id', req.userId)
       .limit(1);
@@ -380,7 +380,7 @@ router.post('/change-password', verifyAuth, async (req: Request, res: Response) 
 
     // Update password
     const { error: updateError } = await insforge
-      .from('users')
+      .database.from('users')
       .update({ password_hash: hashedPassword })
       .eq('id', req.userId);
 

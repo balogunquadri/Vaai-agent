@@ -56,12 +56,17 @@ export async function proxyToService(
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch(url.toString(), {
       method: req.method,
       headers,
       body: req.body ? JSON.stringify(req.body) : undefined,
-      timeout: 30000, // 30s timeout
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     const contentType = response.headers.get('content-type');
     const data =
