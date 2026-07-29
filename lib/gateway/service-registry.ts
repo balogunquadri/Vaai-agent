@@ -15,9 +15,7 @@ export enum ServiceName {
   LEADGEN = 'leadgen',
 }
 
-interface ServiceRegistry {
-  [key in ServiceName]: string;
-}
+type ServiceRegistry = Record<ServiceName, string>;
 
 function getServiceRegistry(): ServiceRegistry {
   const env = process.env.NODE_ENV || 'development';
