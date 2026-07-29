@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_GATEWAY_URL=http://localhost
+    depends_on:
+      - auth
+
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret}
+      - FRONTEND_URL=http://localhost:3000
+
+  alerts:
+    build:
+      context: .
+      dockerfile: services/alerts-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  briefing:
+    build:
+      context: .
+      dockerfile: services/briefing-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  integrations:
+    build:
+      context: .
+      dockerfile: services/integrations-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  messaging:
+    build:
+      context: .
+      dockerfile: services/messaging-service/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  ai-agent:
+    build:
+      context: .
+      dockerfile: services/ai-agent-service/Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - GOOGLE_GENAI_API_KEY=${GOOGLE_GENAI_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  triggers:
+    build:
+      context: .
+      dockerfile: services/triggers-service/Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+
+  stripe:
+    build:
+      context: .
+      dockerfile: services/stripe-service/Dockerfile
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - FRONTEND_URL=http://localhost:3000
+
+  leadgen:
+    build:
+      context: .
+      dockerfile: services/leadgen/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+      - INSFORGE_URL=${INSFORGE_URL}
+      - INSFORGE_API_KEY=${INSFORGE_API_KEY}
+      - FRONTEND_URL=http://localhost:3000
+      - GMAIL_API_KEY=${GMAIL_API_KEY}

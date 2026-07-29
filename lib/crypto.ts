@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 const getEncryptionKey = (): Buffer => {
-  const rawSecret = process.env.INSFORGE_KEY_SECRET || "fallback_dev_secret_key_mcp_v-ai";
+  const rawSecret = process.env.INSFORGE_KEY_SECRET || "fallback_dev_secret_key_mcp_Va-Ai";
   return crypto.createHash("sha256").update(rawSecret).digest();
 };
 

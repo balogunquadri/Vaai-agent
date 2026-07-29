@@ -15,6 +15,8 @@ import telegramAdapter from "./adapters/telegram";
 import outlookAdapter from "./adapters/outlookAdapter";
 import gmailAdapter from "./adapters/gmailAdapter";
 import whatsappAdapter from "./adapters/whatsappAdapter";
+import linkedinAdapter from "./adapters/linkedinAdapter";
+import tiktokAdapter from "./adapters/tiktokAdapter";
 
 // Register built-in adapters here. Additional adapters can be registered elsewhere.
 registerAdapter("slack", slackAdapter as any);
@@ -33,5 +35,7 @@ registerAdapter("telegram", telegramAdapter as any);
 registerAdapter("outlook", outlookAdapter as any);
 registerAdapter("gmail", gmailAdapter as any);
 registerAdapter("whatsapp", whatsappAdapter as any);
+registerAdapter("linkedin", linkedinAdapter as any);
+registerAdapter("tiktok", tiktokAdapter as any);
 
 export default null;

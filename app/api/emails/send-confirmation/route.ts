@@ -65,13 +65,13 @@ export async function POST(req: Request) {
         <p>Click the link below to confirm your email and activate your account:</p>
         <p><a href="${confirmUrl}">${confirmUrl}</a></p>
         <p>If you didn't request this, ignore this email.</p>
-        <p>— The V-AI Team</p>
+        <p>— The Va-Ai Team</p>
       </div>
     `;
 
     const from = process.env.FROM_EMAIL || `onboarding@${process.env.NEXT_PUBLIC_APP_DOMAIN || "example.com"}`;
 
-    const resp = await sendEmail(email, "Confirm your V-AI account", html);
+    const resp = await sendEmail(email, "Confirm your Va-Ai account", html);
     return NextResponse.json({ ok: true, resp });
   } catch (err: any) {
     console.error("send-confirmation error:", err);

@@ -1,0 +1,22 @@
+import http from 'http';
+import app from './app';
+import { logger, getServiceConfig } from '@vaai/shared';
+
+async function start() {
+  const config = getServiceConfig();
+  const server = http.createServer(app);
+  server.listen(config.port, () => {
+    logger.info(`Messaging service listening on http://localhost:${config.port}`);
+  });
+  process.on('SIGTERM', () => {
+    server.close(() => {
+      logger.info('Messaging service stopped');
+      process.exit(0);
+    });
+  });
+}
+
+start().catch((err) => {
+  logger.error(err, 'Messaging service failed to start');
+  process.exit(1);
+});

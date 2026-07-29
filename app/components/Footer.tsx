@@ -38,7 +38,7 @@ export default function Footer() {
                 </svg>
               </div>
               <span className="text-lg font-bold text-white tracking-tight">
-                V-AI<span className="text-cyan-400 font-extrabold">.</span>
+                Va-Ai<span className="text-cyan-400 font-extrabold">.</span>
               </span>
             </a>
             
@@ -138,7 +138,7 @@ export default function Footer() {
 
         {/* Bottom Line */}
         <div className="pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] text-zinc-500 font-mono">
-          <span>&copy; {new Date().getFullYear()} V-AI Inc. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} Va-Ai Inc. All rights reserved.</span>
           <span className="flex items-center gap-1.5 text-cyan-400">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
             Stateless Cloud Infrastructure Verified

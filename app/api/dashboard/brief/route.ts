@@ -246,7 +246,7 @@ Provide output strictly in JSON matching the response schema. Keep the "todayBri
 `;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-2.0-flash",
           contents: promptText,
           config: {
             responseMimeType: "application/json",

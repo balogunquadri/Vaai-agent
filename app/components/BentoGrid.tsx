@@ -66,7 +66,7 @@ export default function BentoGrid() {
               </div>
               <h3 className="text-xl font-bold text-white mb-2">Universal Communication Synthesis</h3>
               <p className="text-zinc-400 text-sm leading-relaxed mb-6">
-                Connect Outlook, Gmail, WhatsApp, and Slack. V-AI acts as a centralized brain, reading inbound traffic to extract key action items, tasks, and urgencies.
+                Connect Outlook, Gmail, WhatsApp, and Slack. Va-Ai acts as a centralized brain, reading inbound traffic to extract key action items, tasks, and urgencies.
               </p>
             </div>
 

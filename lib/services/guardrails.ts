@@ -1,5 +1,5 @@
 /**
- * V-AI Guardrails Engine
+ * Va-Ai Guardrails Engine
  * Handles prompt injection mitigation, PII redaction, and output moderation checking.
  */
 

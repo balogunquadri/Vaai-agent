@@ -110,7 +110,7 @@ export default function AIAgentPage() {
     { label: "Check Gmail inbox", query: "Check my Gmail inbox for any recent unread messages." },
     { label: "Check WhatsApp chats", query: "Fetch my latest WhatsApp messages and summarize them." },
     { label: "Post Slack message", query: "Post a message update alert to Slack channel #dev-ops saying 'Landing page changes are passing deployment tests.'" },
-    { label: "Post LinkedIn update", query: "Publish a LinkedIn update about launching the V-AI assistant workspace." },
+    { label: "Post LinkedIn update", query: "Publish a LinkedIn update about launching the Va-Ai assistant workspace." },
   ];
 
   // 5. Send message loop
@@ -243,7 +243,7 @@ export default function AIAgentPage() {
         {
           id: `ai_err_${Date.now()}`,
           sender: "ai",
-          text: `Failed to connect with V-AI Assistant: ${err.message || "Unknown communication error."}`,
+          text: `Failed to connect with Va-Ai Assistant: ${err.message || "Unknown communication error."}`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -459,7 +459,7 @@ export default function AIAgentPage() {
             <span className="w-8 h-8 rounded-xl bg-purple-600/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
               <HugeiconsIcon icon={AiBrain01Icon} size={18} />
             </span>
-            V-AI Agent Console
+            Va-Ai Agent Console
           </h1>
           <p className="text-zinc-400 text-xs mt-0.5">
             Your unified cross-platform workspace agent
@@ -512,7 +512,7 @@ export default function AIAgentPage() {
               <HugeiconsIcon icon={BubbleChatIcon} size={28} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white leading-normal">Start chatting with V-AI Agent</h2>
+              <h2 className="text-base font-bold text-white leading-normal">Start chatting with Va-Ai Agent</h2>
               <p className="text-zinc-400 text-xs mt-2 max-w-sm leading-relaxed">
                 Connect and manage all your workspace tools. Check unread emails, read chats, post status alerts, send updates, and execute workflows interactively.
               </p>
@@ -642,7 +642,7 @@ export default function AIAgentPage() {
           <input
             type="text"
             required
-            placeholder={isSending ? "Please wait for AI response..." : "Ask V-AI to list emails, send WhatsApps, check Slack..."}
+            placeholder={isSending ? "Please wait for AI response..." : "Ask Va-Ai to list emails, send WhatsApps, check Slack..."}
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             disabled={isSending}

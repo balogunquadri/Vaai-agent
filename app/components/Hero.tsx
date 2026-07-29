@@ -64,7 +64,7 @@ export default function Hero() {
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-panel border border-white/10 mb-6 animate-float">
           <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
           <span className="text-xs font-semibold text-cyan-300 uppercase tracking-widest">
-            Introducing V-AI Agent v2.5
+            Introducing Va-Ai Agent v2.5
           </span>
         </div>
 

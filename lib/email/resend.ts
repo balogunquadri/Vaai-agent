@@ -3,9 +3,9 @@ import fetch from 'node-fetch';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM || 'no-reply@yourapp.com';
-  if (!apiKey) throw new Error('RESEND_API_KEY not configured');
+  const apiKey = process.env.RESEND_API_KEY || process.env.resend_api_key;
+  const from = process.env.RESEND_FROM || 'onboarding@resend.dev';
+  if (!apiKey) throw new Error('RESEND_API_KEY or resend_api_key not configured');
 
   const res = await fetch(RESEND_API_URL, {
     method: 'POST',

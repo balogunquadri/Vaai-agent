@@ -12,7 +12,7 @@ VA-AI uses a **Hybrid Model Context Protocol (MCP) Architecture** to orchestrate
 
 ```
                       ┌───────────────────────────┐
-                      │     V-AI Chat Agent       │
+                      │     Va-Ai Chat Agent       │
                       │   (app/api/ai-agent)      │
                       └─────────────┬─────────────┘
                                     │

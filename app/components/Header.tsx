@@ -64,7 +64,7 @@ export default function Header() {
             <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-violet-600 via-purple-600 to-cyan-400 blur-sm opacity-55 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
           </div>
           <span className="text-xl font-bold tracking-tight text-white font-sans bg-clip-text bg-gradient-to-r from-white via-zinc-200 to-zinc-400">
-            V-AI<span className="text-cyan-400 font-extrabold">.</span>
+            Va-Ai<span className="text-cyan-400 font-extrabold">.</span>
           </span>
         </a>
 

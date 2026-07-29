@@ -118,7 +118,7 @@ export default function SignIn() {
               </svg>
             </div>
             <span className="text-lg font-bold text-white tracking-tight">
-              V-AI<span className="text-cyan-400 font-extrabold">.</span>
+              Va-Ai<span className="text-cyan-400 font-extrabold">.</span>
             </span>
           </a>
           <h2 className="text-2xl font-bold tracking-tight text-white mb-1">

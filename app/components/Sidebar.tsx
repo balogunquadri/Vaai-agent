@@ -27,6 +27,7 @@ export default function Sidebar() {
     { label: "Dashboard", icon: Grid2X2Icon, bg: "bg-blue-600", path: "/dashboard" },
     { label: "AI Agent", icon: AiBrain01Icon, bg: "bg-purple-600", path: "/dashboard/ai-agent" },
     { label: "Briefing", icon: NotebookIcon, bg: "bg-amber-600", path: "/dashboard/briefing" },
+    { label: "Leadgen", icon: CircleDollarSignIcon, bg: "bg-emerald-600", path: "/dashboard/leadgen" },
     { label: "Spy", icon: AiSearchIcon, bg: "bg-cyan-600", path: "/dashboard/spy" },
     { label: "Integrations", icon: PlugIcon, bg: "bg-pink-600", path: "/dashboard?tab=integrations" },
     { label: "Alerts", icon: BellIcon, bg: "bg-rose-600", path: "/dashboard/alerts" },
@@ -102,7 +103,7 @@ export default function Sidebar() {
           </button>
           {!isCollapsed && (
             <span className="text-lg font-bold tracking-tight text-foreground font-sans">
-              V-AI<span className="text-cyan-400 font-extrabold">.</span>
+              Va-Ai<span className="text-cyan-400 font-extrabold">.</span>
             </span>
           )}
         </div>

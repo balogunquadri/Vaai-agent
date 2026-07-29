@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "V-AI | Unified AI Virtual Assistant Workspace",
+  title: "Va-Ai | Unified AI Virtual Assistant Workspace",
   description: "Connect Slack, Gmail, Notion, WhatsApp, Telegram, Drive, Zoom, and 10+ other platforms. Let your personal AI agent automate summaries, extract action items, and trigger cross-app actions automatically.",
 };
 

@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       </div>
     `;
 
-    const resp = await sendEmail(email, "Confirm your V-AI account", html);
+    const resp = await sendEmail(email, "Confirm your Va-Ai account", html);
     return NextResponse.json({ ok: true, resp });
   } catch (err: any) {
     console.error("resend-confirmation error:", err);

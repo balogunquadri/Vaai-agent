@@ -13,7 +13,7 @@ export default function Faq() {
   const items: FaqItem[] = [
     {
       question: "How secure is my connected app data?",
-      answer: "Extremely. V-AI operates as a stateless orchestration engine. All credential tokens are encrypted in our SOC-2 compliant secure vault. We never persist your emails, chats, or document contents on our servers, and we enforce a strict policy against training LLM models on your private data.",
+      answer: "Extremely. Va-Ai operates as a stateless orchestration engine. All credential tokens are encrypted in our SOC-2 compliant secure vault. We never persist your emails, chats, or document contents on our servers, and we enforce a strict policy against training LLM models on your private data.",
     },
     {
       question: "Which messaging channels do you support?",
@@ -29,7 +29,7 @@ export default function Faq() {
     },
     {
       question: "Is there support for enterprise self-hosting?",
-      answer: "Yes, our Enterprise workspace plan supports self-hosting the V-AI gateway via Docker containers inside your private AWS, GCP, or Azure cloud architectures. Contact our developer team for details.",
+      answer: "Yes, our Enterprise workspace plan supports self-hosting the Va-Ai gateway via Docker containers inside your private AWS, GCP, or Azure cloud architectures. Contact our developer team for details.",
     },
   ];
 

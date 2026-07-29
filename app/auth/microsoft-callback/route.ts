@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET || process.env.OUTLOOK_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${origin}/auth/microsoft-callback?code=SIMULATED_CODE&state=${encodeURIComponent(userId)}`);
+    return new NextResponse(
+      `<!doctype html><html><body style="background:#030014;color:#f4f4f5;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;"><h2>Configuration Missing</h2><p>MICROSOFT_CLIENT_ID or MICROSOFT_CLIENT_SECRET is not configured on the server.</p></div></body></html>`,
+      { headers: { "Content-Type": "text/html" } }
+    );
   }
 
   try {

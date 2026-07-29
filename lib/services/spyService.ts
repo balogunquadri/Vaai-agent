@@ -359,7 +359,7 @@ export class SpyService {
       const response = await fetch(this.targetUrl, {
         signal: controller.signal,
         headers: {
-          "User-Agent": "V-AI-Spy-Bot/1.0 (+https://v-ai.app)"
+          "User-Agent": "Va-Ai-Spy-Bot/1.0 (+https://Va-Ai.app)"
         }
       });
       clearTimeout(id);

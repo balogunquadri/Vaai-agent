@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       </div>
     `;
 
-    const resp = await sendEmail(email, "Reset your V-AI password", html);
+    const resp = await sendEmail(email, "Reset your Va-Ai password", html);
     return NextResponse.json({ ok: true, resp });
   } catch (err: any) {
     console.error("reset-password error:", err);

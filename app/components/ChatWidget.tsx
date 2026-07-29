@@ -23,7 +23,7 @@ export default function ChatWidget() {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: "ai", text: "Hello! I am V-AI, your virtual assistant. How can I help you manage your workspace operations today?" }
+    { sender: "ai", text: "Hello! I am Va-Ai, your virtual assistant. How can I help you manage your workspace operations today?" }
   ]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -139,7 +139,7 @@ export default function ChatWidget() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to call V-AI agent");
+        throw new Error("Failed to call Va-Ai agent");
       }
 
       const reader = res.body?.getReader();
@@ -233,7 +233,7 @@ export default function ChatWidget() {
                 </svg>
               </div>
               <div className="text-left">
-                <h4 className="text-xs font-bold text-foreground">V-AI Workspace Agent</h4>
+                <h4 className="text-xs font-bold text-foreground">Va-Ai Workspace Agent</h4>
                 <div className="flex items-center gap-1">
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                   <span className="text-[9px] text-zinc-500 font-medium font-mono">Gemini-Managed</span>

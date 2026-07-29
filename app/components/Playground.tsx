@@ -204,7 +204,7 @@ export default function Playground() {
                 </svg>
               </div>
               <div>
-                <h4 className="text-xs font-bold text-white">V-AI Sandbox Assistant</h4>
+                <h4 className="text-xs font-bold text-white">Va-Ai Sandbox Assistant</h4>
                 <span className="text-[9px] text-cyan-400 font-bold uppercase tracking-wide">AI Sandbox Instance</span>
               </div>
               <span className="ml-auto w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />

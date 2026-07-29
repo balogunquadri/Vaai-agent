@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${origin}/auth/google-callback?code=SIMULATED_CODE&state=${encodeURIComponent(userId)}`);
+    return new NextResponse(
+      `<!doctype html><html><body style="background:#030014;color:#f4f4f5;font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;"><div style="text-align:center;"><h2>Configuration Missing</h2><p>GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is not configured on the server.</p></div></body></html>`,
+      { headers: { "Content-Type": "text/html" } }
+    );
   }
 
   try {

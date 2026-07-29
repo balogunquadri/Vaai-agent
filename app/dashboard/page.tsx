@@ -126,8 +126,18 @@ const platformRegistry: Record<string, { name: string; brandColor: string; icon:
         <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
       </svg>
     )
+  },
+  tiktok: {
+    name: "TikTok",
+    brandColor: "bg-zinc-900 border border-white/10",
+    icon: (
+      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.86-.74-3.94-1.74-.22-.2-.43-.4-.61-.63-.03 2.91.01 5.82-.02 8.73-.08 1.95-.75 3.93-2.12 5.34-1.62 1.72-4.14 2.51-6.5 2.27-2.25-.19-4.43-1.42-5.55-3.39-1.4-2.38-1.09-5.71.79-7.79 1.51-1.72 3.93-2.54 6.17-2.24V12.7c-1.43-.16-2.95.34-3.83 1.47-.94 1.14-1.07 2.83-.34 4.1.72 1.3 2.27 2.11 3.75 1.94 1.52-.11 2.87-1.28 3.19-2.78.11-1.22.03-2.45.04-3.68V.02z" />
+      </svg>
+    )
   }
 };
+
 
 const getPlatformMeta = (platformId: string) => {
   if (platformRegistry[platformId]) {
@@ -169,7 +179,9 @@ const mcpToolsRegistry: Record<string, string[]> = {
   zoom: ["zoom_create_meeting"],
   manus: ["manus_run_agent"],
   zapier: ["zapier_trigger_zap"],
-  tango: ["tango_get_workflows"]
+  tango: ["tango_get_workflows"],
+  linkedin: ["linkedin_prepare_message_draft"],
+  tiktok: ["tiktok_prepare_message_draft"]
 };
 
 function DashboardContent() {
@@ -189,6 +201,7 @@ function DashboardContent() {
   const { profile, user } = useAuth();
   const [connections, setConnections] = useState<Record<string, boolean>>({});
   const [connectedAppRows, setConnectedAppRows] = useState<any[]>([]);
+  const [pendingDrafts, setPendingDrafts] = useState<any[]>([]);
 
   const connectedPlatforms = Object.keys(connections).filter((key) => connections[key] === true);
   const activeTabsList = ["gmail", "whatsapp", ...connectedPlatforms.filter(p => p !== "gmail" && p !== "whatsapp")];
@@ -284,6 +297,22 @@ function DashboardContent() {
       } catch (err) {
         console.error("Failed to fetch background WhatsApp status:", err);
       }
+
+      // Compile pending drafts from LinkedIn and TikTok integration state schemas
+      const draftsList: any[] = [];
+      data?.forEach((row: any) => {
+        if (row.connected && row.state?.pendingDrafts) {
+          row.state.pendingDrafts.forEach((draft: any) => {
+            if (draft.status === "pending") {
+              draftsList.push({
+                ...draft,
+                platform: row.platform
+              });
+            }
+          });
+        }
+      });
+      setPendingDrafts(draftsList);
 
       setConnections(statusMap);
       return statusMap;
@@ -384,6 +413,74 @@ function DashboardContent() {
   const handleRefresh = async () => {
     const activeConns = await fetchConnections();
     await generateDashboardBrief(activeConns, true, briefData);
+  };
+
+  const handleEditDraft = async (platform: string, draftId: string, newText: string) => {
+    setPendingDrafts((prev) =>
+      prev.map((d) => (d.id === draftId ? { ...d, text: newText } : d))
+    );
+    if (!user) return;
+    try {
+      const { data: existing } = await insforge.database
+        .from("integrations")
+        .select("id, state")
+        .eq("user_id", user.id)
+        .eq("platform", platform)
+        .maybeSingle();
+
+      if (existing && existing.state?.pendingDrafts) {
+        const updatedDrafts = existing.state.pendingDrafts.map((d: any) =>
+          d.id === draftId ? { ...d, text: newText } : d
+        );
+        await insforge.database
+          .from("integrations")
+          .update({
+            state: { ...existing.state, pendingDrafts: updatedDrafts },
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existing.id);
+      }
+    } catch (err) {
+      console.error("Failed to update draft in DB:", err);
+    }
+  };
+
+  const handleCopyAndOpen = (draft: any) => {
+    navigator.clipboard.writeText(draft.text);
+    const url = draft.platform === "linkedin"
+      ? "https://www.linkedin.com/messaging/"
+      : "https://www.tiktok.com/messages/";
+    window.open(url, "_blank");
+  };
+
+  const handleMarkAsSent = async (platform: string, draftId: string) => {
+    setPendingDrafts((prev) => prev.filter((d) => d.id !== draftId));
+    if (!user) return;
+    try {
+      const { data: existing } = await insforge.database
+        .from("integrations")
+        .select("id, state")
+        .eq("user_id", user.id)
+        .eq("platform", platform)
+        .maybeSingle();
+
+      if (existing && existing.state?.pendingDrafts) {
+        const updatedDrafts = existing.state.pendingDrafts.map((d: any) =>
+          d.id === draftId ? { ...d, status: "sent" } : d
+        );
+        await insforge.database
+          .from("integrations")
+          .update({
+            state: { ...existing.state, pendingDrafts: updatedDrafts },
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", existing.id);
+        
+        await fetchConnections();
+      }
+    } catch (err) {
+      console.error("Failed to mark draft as sent in DB:", err);
+    }
   };
 
   const handleGmailUnauthorized = async () => {
@@ -949,6 +1046,55 @@ function DashboardContent() {
 
       {activeDashboardTab === "overview" ? (
         <>
+          {/* Pending Drafts Section */}
+          {pendingDrafts && pendingDrafts.length > 0 && (
+            <div className="glass-panel rounded-3xl p-6 border border-violet-500/20 shadow-[0_0_30px_rgba(139,92,246,0.1)] bg-violet-950/10 space-y-4">
+              <div className="flex items-center gap-2 border-b border-violet-500/25 pb-3">
+                <HugeiconsIcon icon={AiBrain01Icon} className="text-violet-400 animate-pulse animate-duration-3000" size={18} />
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Pending Message Drafts (User Confirmation Required)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {pendingDrafts.map((draft: any) => (
+                  <div key={draft.id} className="p-5 rounded-2xl bg-card-bg/60 border border-border-color/60 space-y-4 flex flex-col justify-between hover:border-violet-500/30 transition-all">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-violet-400 flex items-center gap-1.5 bg-violet-500/5 px-2.5 py-1 rounded-full border border-violet-500/10">
+                          <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                          {draft.platform.charAt(0).toUpperCase() + draft.platform.slice(1)} Draft
+                        </span>
+                        <span className="text-[10px] text-zinc-500 font-medium">
+                          {new Date(draft.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                        To: <span className="text-cyan-400 font-extrabold">{draft.recipient}</span>
+                      </div>
+                      <textarea
+                        className="w-full p-3.5 rounded-xl bg-black/40 border border-border-color/60 text-xs text-zinc-300 focus:outline-none focus:border-violet-500/40 resize-none h-24 font-sans leading-relaxed"
+                        value={draft.text}
+                        onChange={(e) => handleEditDraft(draft.platform, draft.id, e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleCopyAndOpen(draft)}
+                        className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg hover:shadow-violet-600/15"
+                      >
+                        Copy & Open {draft.platform === "linkedin" ? "LinkedIn" : "TikTok"}
+                      </button>
+                      <button
+                        onClick={() => handleMarkAsSent(draft.platform, draft.id)}
+                        className="px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 text-emerald-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        Mark Sent
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Stats Cards Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
